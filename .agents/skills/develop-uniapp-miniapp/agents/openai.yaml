@@ -1,0 +1,6 @@
+interface:
+  display_name: "UniApp Miniapp"
+  short_description: "Uni-app WeChat pages, feature slices, and frontend foundation"
+  default_prompt: "Use $develop-uniapp-miniapp for confirmed uni-app mini-program work: first identify the repo pattern, then choose small-change, feature-slice, foundation, or prototype-translation mode."
+policy:
+  allow_implicit_invocation: true

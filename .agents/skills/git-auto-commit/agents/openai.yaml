@@ -1,0 +1,7 @@
+interface:
+  display_name: "Git Auto Commit"
+  short_description: "自动分析当前改动并按逻辑安全拆分、暂存和提交 Git 代码"
+  default_prompt: "Use $git-auto-commit to analyze the current git changes, group them safely, and create the appropriate commits."
+
+policy:
+  allow_implicit_invocation: true

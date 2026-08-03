@@ -1,0 +1,4 @@
+interface:
+  display_name: "Domain Modeling"
+  short_description: "Capture project terms, rules, and decisions"
+  default_prompt: "Use $domain-modeling to sharpen and capture the domain language for this project."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Ops"
+  short_description: "Inspect and promote missing release commits safely."
+  default_prompt: "Use $release-ops to inspect commits missing from the production branch, default source branch to uat when available, auto-select release/master, infer the correct SemVer tag, and support shorthand execute prompts like 上生产, 发版, 推上去, and 发到release when a time or feature selector is present."

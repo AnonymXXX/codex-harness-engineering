@@ -1,0 +1,16 @@
+{
+  "name": "UniApp WeChat Starter",
+  "appid": "",
+  "description": "",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "",
+    "usingComponents": true,
+    "setting": {
+      "urlCheck": false
+    }
+  },
+  "vueVersion": "3"
+}

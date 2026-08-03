@@ -1,0 +1,6 @@
+interface:
+  display_name: "WeChat Mini Program CI Upload"
+  short_description: "Upload or preview WeChat Mini Programs; no experience promotion."
+  default_prompt: "Use $wechat-miniprogram-ci-upload to generate and upload or preview the latest mp-weixin output, sync and push build-upload versions, and stop after development-version upload without accessing the WeChat public platform or selecting an experience version."
+policy:
+  allow_implicit_invocation: true

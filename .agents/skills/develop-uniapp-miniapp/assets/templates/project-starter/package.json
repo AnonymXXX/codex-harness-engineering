@@ -1,0 +1,43 @@
+{
+  "name": "uniapp-wechat-starter",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.18.2",
+  "scripts": {
+    "dev:h5": "uni",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:h5": "uni build",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "type-check": "vue-tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "postinstall": "weapp-tw patch"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-4080420251103001",
+    "@dcloudio/uni-components": "3.0.0-4080420251103001",
+    "@dcloudio/uni-h5": "3.0.0-4080420251103001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-4080420251103001",
+    "pinia": "^3.0.4",
+    "vue": "^3.4.21"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^6.7.1",
+    "@dcloudio/types": "^3.4.8",
+    "@dcloudio/vite-plugin-uni": "3.0.0-4080420251103001",
+    "@egoist/tailwindcss-icons": "^1.9.0",
+    "@iconify-json/fa6-solid": "^1.2.4",
+    "@vue/tsconfig": "^0.7.0",
+    "autoprefixer": "^10.4.22",
+    "eslint": "^9.39.2",
+    "postcss": "^8.5.6",
+    "sass": "^1.94.2",
+    "tailwindcss": "^3.4.18",
+    "typescript": "^5.7.2",
+    "unplugin-auto-import": "^20.2.0",
+    "unplugin-vue-components": "^30.0.0",
+    "vite": "5.2.8",
+    "vue-tsc": "^2.2.0",
+    "weapp-tailwindcss": "^4.8.7"
+  }
+}

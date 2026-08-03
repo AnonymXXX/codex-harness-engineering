@@ -1,0 +1,6 @@
+interface:
+  display_name: "Harness Engineering"
+  short_description: "Apply proportionate engineering workflow safeguards"
+  default_prompt: "Use $harness-engineering to execute this project change with proportionate safeguards and validation."
+policy:
+  allow_implicit_invocation: true
