@@ -27,12 +27,19 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.9
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         tomllib = None  # type: ignore[assignment]
 
-REPORT_VERSION = 5
+REPORT_VERSION = 6
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FRONTMATTER_PATTERN = re.compile(r"^---\n(.*?)\n---(?:\n|$)", re.DOTALL)
 ROLLOUT_ID_PATTERN = re.compile(
     r"(?P<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$",
     re.IGNORECASE,
+)
+LUNA_OUTCOME_PREFIX = "Luna 验收："
+LUNA_OUTCOME_PATTERN = re.compile(
+    r"^Luna 验收：adopted=(?P<adopted>0|[1-9]\d*) "
+    r"partial=(?P<partial>0|[1-9]\d*) "
+    r"rejected=(?P<rejected>0|[1-9]\d*) "
+    r"failed=(?P<failed>0|[1-9]\d*)$"
 )
 HARNESS_SKILLS = {
     "codebase-design",
@@ -1287,6 +1294,14 @@ def _audit_default(days: int) -> dict[str, Any]:
         "luna_peak_concurrency": 0,
         "root_turns_with_luna": 0,
         "successful_root_turns_with_luna": 0,
+        "luna_units_reported": 0,
+        "luna_units_adopted": 0,
+        "luna_units_partially_adopted": 0,
+        "luna_units_rejected": 0,
+        "luna_units_failed": 0,
+        "root_turns_with_luna_outcome_report": 0,
+        "root_turns_missing_luna_outcome_report": 0,
+        "luna_outcome_reports_invalid": 0,
     }
 
 
@@ -1460,6 +1475,25 @@ def _audit_luna_key(session_key: str, turn_id: str | None) -> str:
     return f"{session_key}:turn:{turn_id}" if turn_id else f"{session_key}:session"
 
 
+def _audit_luna_outcome(
+    messages: Iterable[str],
+) -> tuple[str, dict[str, int] | None]:
+    lines = [
+        line.strip()
+        for message in set(messages)
+        for line in message.splitlines()
+        if line.strip().startswith(LUNA_OUTCOME_PREFIX)
+    ]
+    if not lines:
+        return "missing", None
+    if len(lines) != 1:
+        return "invalid", None
+    match = LUNA_OUTCOME_PATTERN.fullmatch(lines[0])
+    if not match:
+        return "invalid", None
+    return "valid", {name: int(value) for name, value in match.groupdict().items()}
+
+
 def _audit_rollout_id(path: str) -> str | None:
     match = ROLLOUT_ID_PATTERN.search(Path(path).name)
     return match.group("id") if match else None
@@ -1603,6 +1637,7 @@ def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
     completed_turns: dict[str, bool] = {}
     root_completed_turns: set[str] = set()
     root_turns_by_session: dict[str, set[str]] = {}
+    root_completion_messages: dict[tuple[str, str], set[str]] = {}
     root_luna_turns: set[tuple[str, str]] = set()
     anonymous_sequence = 0
     for record in current_records:
@@ -1639,6 +1674,8 @@ def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
             root_completion_key = f"{session_key}:turn:{root_token}"
             root_completed_turns.add(root_completion_key)
             root_turns_by_session.setdefault(session_key, set()).add(root_token)
+            if isinstance(message, str):
+                root_completion_messages.setdefault((session_key, root_token), set()).add(message)
             result["root_completed"] = len(root_completed_turns)
 
     # Parent activity links a spawned thread back to the root turn. The call ID
@@ -1836,6 +1873,7 @@ def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
                     parent_session = parent_info.get("parent_thread_id")
         return parent_session, turn_id
 
+    direct_root_luna_turns: set[tuple[str, str]] = set()
     for key in luna_start_keys:
         info = sessions.get(key)
         parent_id = info.get("parent_thread_id") if info else None
@@ -1852,6 +1890,15 @@ def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
             turn_id = next(iter(root_turns_by_session[root_session]))
         if turn_id:
             root_luna_turns.add((root_session, turn_id))
+            recorded_parent = root_context_by_luna.get(key, (None, None))[0]
+            metadata_parent = info.get("parent_thread_id") if info else None
+            direct_parent = (
+                metadata_parent == root_session
+                if metadata_parent
+                else recorded_parent == root_session
+            )
+            if direct_parent and key not in luna_nested_keys:
+                direct_root_luna_turns.add((root_session, turn_id))
 
     result["completed"] = len(completed_turns)
     result["reports"] = sum(completed_turns.values())
@@ -1875,6 +1922,41 @@ def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
         ):
             successful_root_luna_turns.add((root_session, turn_id))
     result["successful_root_turns_with_luna"] = len(successful_root_luna_turns)
+
+    completed_direct_turns = {
+        (session_key, turn_id)
+        for session_key, turn_id in direct_root_luna_turns
+        if turn_id in root_turns_by_session.get(session_key, set())
+    }
+    for root_turn in completed_direct_turns:
+        outcome_status, outcome = _audit_luna_outcome(
+            root_completion_messages.get(root_turn, set())
+        )
+        if outcome_status == "missing":
+            result["root_turns_missing_luna_outcome_report"] += 1
+            continue
+        if outcome_status == "invalid" or outcome is None:
+            result["luna_outcome_reports_invalid"] += 1
+            continue
+        result["root_turns_with_luna_outcome_report"] += 1
+        result["luna_units_adopted"] += outcome["adopted"]
+        result["luna_units_partially_adopted"] += outcome["partial"]
+        result["luna_units_rejected"] += outcome["rejected"]
+        result["luna_units_failed"] += outcome["failed"]
+
+    for root_turn, messages in root_completion_messages.items():
+        if root_turn in completed_direct_turns:
+            continue
+        outcome_status, _outcome = _audit_luna_outcome(messages)
+        if outcome_status != "missing":
+            result["luna_outcome_reports_invalid"] += 1
+
+    result["luna_units_reported"] = (
+        result["luna_units_adopted"]
+        + result["luna_units_partially_adopted"]
+        + result["luna_units_rejected"]
+        + result["luna_units_failed"]
+    )
 
     active: set[str] = set()
     peak = 0
@@ -2082,6 +2164,18 @@ def render_report(report: dict[str, Any], output_format: str) -> str:
                 f" root_turns_with_luna={section_summary.get('root_turns_with_luna', 0)}"
                 f" successful_root_turns_with_luna="
                 f"{section_summary.get('successful_root_turns_with_luna', 0)}"
+                f" luna_units_reported={section_summary.get('luna_units_reported', 0)}"
+                f" luna_units_adopted={section_summary.get('luna_units_adopted', 0)}"
+                f" luna_units_partially_adopted="
+                f"{section_summary.get('luna_units_partially_adopted', 0)}"
+                f" luna_units_rejected={section_summary.get('luna_units_rejected', 0)}"
+                f" luna_units_failed={section_summary.get('luna_units_failed', 0)}"
+                f" root_turns_with_luna_outcome_report="
+                f"{section_summary.get('root_turns_with_luna_outcome_report', 0)}"
+                f" root_turns_missing_luna_outcome_report="
+                f"{section_summary.get('root_turns_missing_luna_outcome_report', 0)}"
+                f" luna_outcome_reports_invalid="
+                f"{section_summary.get('luna_outcome_reports_invalid', 0)}"
             )
         elif section == "docs":
             section_line += (

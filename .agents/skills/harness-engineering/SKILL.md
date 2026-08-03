@@ -34,7 +34,7 @@ Use the Standard Lane for cohesive local features and fixes that exceed the Fast
 
 - After risk classification, proactively scan every non-simple engineering task for independent Luna work units.
 - Dispatch through at most 5 direct `luna_worker` instances; workers are leaves and must not spawn, delegate, coordinate, or nest subagents.
-- Thresholds, eligible unit types, queueing, fork bounds, exclusions, parallel disjointness, and main-agent review/failure handling are defined in the [Harness workflow](../../../.codex/docs/workflows/harness-engineering.md).
+- Structured dispatch, response and acceptance reporting, routing precedence, thresholds, eligible unit types, queueing, fork bounds, exclusions, parallel disjointness, and main-agent review/failure handling are defined in the [Harness workflow](../../../.codex/docs/workflows/harness-engineering.md).
 
 ## Natural Mode
 

@@ -45,8 +45,30 @@ or focused result inspection. The scan must consider, where applicable:
 
 For Standard or Heavy Lane work, the main agent completes risk classification and any required worktree
 bootstrap before dispatching independent units. A worker always operates in the selected task worktree,
-never the original worktree by accident. The dispatch prompt names the exact scope, allowed paths,
-owned state, expected output, and validation command.
+never the original worktree by accident.
+
+### Dispatch and response contract
+
+Every Luna dispatch prompt uses these five headings, even when a field is `N/A`:
+
+- `Objective`: one concrete, independently acceptable result;
+- `Ownership`: the absolute worktree path, allowed read/write paths, and exclusively owned state;
+- `Interfaces`: inputs, outputs, or contracts that must remain compatible;
+- `Constraints`: exclusions, prohibited changes, and other hard boundaries; and
+- `Verification`: exact commands or objective inspection criteria.
+
+A worker whose scope or ownership remains ambiguous returns `Status: blocked` instead of expanding the
+task. Every worker response uses these headings:
+
+- `Status: completed|blocked|failed`;
+- `Changes`;
+- `Verified`;
+- `Judgment Calls`; and
+- `Gaps`.
+
+For a read-only unit, `Changes` records the evidence produced and explicitly states that no files were
+changed. The response contract makes review predictable; it does not transfer integration or decision
+ownership away from the main agent.
 
 ### Scheduling and parallelism
 
@@ -71,13 +93,39 @@ small or has a read-only path. Direct edits to shared configuration, cross-modul
 artifacts, deployments, or other coupled surfaces remain with the main agent unless a separate bounded
 read-only evidence unit is clearly isolated.
 
+### Routing precedence
+
+Apply routing in this order: safety rules and delegation exclusions, an explicit user request, an
+explicitly activated domain Skill or Workflow, then the automatic Luna coverage scan. A domain workflow
+owns its method and decisions. Luna may handle only eligible work units within that workflow and must not
+silently replace an agent or execution path selected by it.
+
 ### Review and failure handling
 
 The main agent owns coordination, conflict resolution, review, integration, final validation, and the
 final answer. Treat every worker diff, artifact, and summary as untrusted until reviewed against its
-scope and validation. If a spawn is unavailable or fails, make one correctly configured attempt only;
-continue locally when safe or stop and report the blocker. Do not retry failed spawns or failed worker
-validation in an automatic loop, and never report an unverified worker result as success.
+scope and validation. Review the actual diff or evidence, confirm that owned paths and interfaces were
+respected, and independently rerun the critical verification before adopting a result.
+
+Classify each terminal Luna work unit during that review:
+
+- `adopted`: the result is used without material correction;
+- `partial`: a substantive part is used after correction or restructuring;
+- `rejected`: a completed result is reviewed but no substantive part is used; or
+- `failed`: the unit is blocked, fails, is interrupted, or produces no reviewable result.
+
+When a completed root turn used Luna, append exactly one final-answer line in this format:
+
+```text
+Luna 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
+```
+
+Count work units, including additional queued units run by reusing an existing worker thread. The four
+values cover every terminal Luna work unit accepted by the runtime for that root turn. A failed spawn
+that never creates a Luna thread is reported as an operational caveat but is not a Luna work unit. If a
+spawn is unavailable or fails, make one correctly configured attempt only; continue locally when safe
+or stop and report the blocker. Do not retry failed spawns or failed worker validation in an automatic
+loop, and never report an unverified worker result as success.
 
 ## Validation Matrix
 
@@ -161,6 +209,14 @@ Use `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doct
 Use `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full` for periodic maintenance or when diagnosing global Harness health. The full check also validates all skill metadata, checks runtime visibility, reports worktree lifecycle debt without changing it, and summarizes recent rule-capture markers. A rule-capture marker count is informational; tasks without a material rule or documentation change are not expected to emit an empty status line.
 
 Full Doctor output is grouped into `Skills`, `Worktrees`, and `Sessions`. Use repeatable `--section skills`, `--section worktrees`, or `--section sessions` with `--full` to limit scanning and output. Session completion counts are deduplicated across log files by `turn_id`; `raw_completed` and `duplicates_skipped` keep the source volume visible.
+
+Session reports also expose Luna work-unit outcomes from the exact final-answer acceptance line.
+`luna_units_reported` is the sum of adopted, partially adopted, rejected, and failed units;
+`root_turns_with_luna_outcome_report` counts valid root reports. A completed direct-Luna root turn with
+no line increments `root_turns_missing_luna_outcome_report`; malformed, repeated, or orphaned lines
+increment `luna_outcome_reports_invalid`. Historical missing reports remain informational. The legacy
+`successful_root_turns_with_luna` field means that a direct Luna child completed, not that its result was
+adopted.
 
 Document gardening is an optional section and is not included in the default full scan. Run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full --section docs --repo-root <repo>` only when the documentation-gardening workflow calls for it.
 

@@ -48,7 +48,7 @@ Normal non-forced pushes to `origin/dev`, `origin/develop`, `origin/test`, and `
 
 ## Subagent Delegation
 
-After risk classification, proactively scan every non-simple engineering task for eligible Luna work units. When work is expected to require at least 2 substantive tool steps or exceed 60 seconds, prioritize delegation. Follow `~/.codex/docs/workflows/harness-engineering.md` for work-unit scope, 5-worker concurrency and queueing, disjoint paths/state/validation, bounded forks, exclusions, leaf behavior, and main-agent review and failure handling.
+After risk classification, proactively scan every non-simple engineering task for eligible Luna work units. When work is expected to require at least 2 substantive tool steps or exceed 60 seconds, prioritize delegation. Explicit domain Skills and Workflows take precedence over automatic Luna routing. Follow `~/.codex/docs/workflows/harness-engineering.md` for the structured dispatch and acceptance contract, work-unit scope, 5-worker concurrency and queueing, disjoint ownership, bounded forks, exclusions, leaf behavior, and main-agent review.
 
 ## Harness Engineering
 

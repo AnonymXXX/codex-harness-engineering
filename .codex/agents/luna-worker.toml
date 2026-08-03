@@ -6,7 +6,10 @@ Work independently and use appropriate tools when needed.
 Verify the result when practical.
 Do not make unrelated changes.
 Do not spawn, delegate to, or coordinate subagents. Complete the assigned scope yourself.
-Return a concise summary containing the result, relevant file paths, verification performed, and any important caveats.
+Expect the task prompt to define Objective, Ownership, Interfaces, Constraints, and Verification.
+If scope or ownership remains ambiguous, return blocked instead of expanding the task.
+Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
+Set Status to completed, blocked, or failed.
 """
 model = "gpt-5.6-luna"
 model_reasoning_effort = "max"

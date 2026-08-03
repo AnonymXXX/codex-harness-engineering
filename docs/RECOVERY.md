@@ -15,6 +15,9 @@ Codex configuration into Git.
 - Managed files are symlinked into `~/.codex` and `~/.agents/skills` so Git remains the versioned
   source of truth.
 - Codex-managed system skills remain owned by Codex and are not copied into this repository.
+- Luna dispatches use the tracked five-field task contract and structured response contract. A root
+  task that uses Luna reports adopted, partially adopted, rejected, and failed work-unit counts in its
+  final answer so Harness Doctor can audit actual result use rather than infer it from completion.
 
 ## Recovery Contract
 
@@ -95,6 +98,8 @@ path. Permanent deletion is not part of recovery or rollback.
 - An explicit external overlay resolves only from its own Manifest and selected Profile.
 - A temporary empty HOME can install and check profiles twice without drift.
 - The installed `luna_worker` matches the tracked TOML and is available to fresh Codex tasks.
+- A fresh task can dispatch Luna with the structured contract and emits one machine-readable Luna
+  acceptance line after the main agent reviews the result.
 - The tracked public Skill inventory matches the Manifest and actual directories.
 - Security checks reject real environment files, Codex config, private keys, nested Git metadata,
   generated caches, known credential formats, and hardcoded database passwords.

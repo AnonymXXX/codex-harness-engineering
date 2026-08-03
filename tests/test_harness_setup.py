@@ -20,7 +20,10 @@ Work independently and use appropriate tools when needed.
 Verify the result when practical.
 Do not make unrelated changes.
 Do not spawn, delegate to, or coordinate subagents. Complete the assigned scope yourself.
-Return a concise summary containing the result, relevant file paths, verification performed, and any important caveats.
+Expect the task prompt to define Objective, Ownership, Interfaces, Constraints, and Verification.
+If scope or ownership remains ambiguous, return blocked instead of expanding the task.
+Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
+Set Status to completed, blocked, or failed.
 """
 model = "gpt-5.6-luna"
 model_reasoning_effort = "max"
@@ -133,6 +136,13 @@ class HarnessSetupCliTests(unittest.TestCase):
         )
         self.assertIn("Codex reads the", recovery)
         self.assertIn("setting only when a new task starts", recovery)
+
+    def test_recovery_doc_documents_luna_acceptance_contract(self) -> None:
+        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
+
+        self.assertIn("five-field task contract", recovery)
+        self.assertIn("structured response contract", recovery)
+        self.assertIn("machine-readable Luna", recovery)
 
     def test_install_leaves_machine_specific_codex_config_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

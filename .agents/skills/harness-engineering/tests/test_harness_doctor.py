@@ -657,6 +657,186 @@ class SessionAuditTests(unittest.TestCase):
         self.assertEqual(1, audit["luna_peak_concurrency"])
         self.assertEqual(1, audit["root_turns_with_luna"])
         self.assertEqual(1, audit["successful_root_turns_with_luna"])
+        self.assertEqual(1, audit["root_turns_missing_luna_outcome_report"])
+
+    def test_luna_outcome_report_counts_reused_units_and_duplicate_rollouts(self) -> None:
+        root_id = "33333333-3333-3333-3333-333333333333"
+        child_id = "44444444-4444-4444-4444-444444444444"
+        root_path = self.root / f"rollout-2026-08-03T00-00-00-{root_id}.jsonl"
+        duplicate_path = self.root / "copy" / root_path.name
+        root_rows = [
+            self.metadata(self.now, root_id),
+            self.event(
+                self.now,
+                "event_msg",
+                {
+                    "type": "sub_agent_activity",
+                    "agent_thread_id": child_id,
+                    "kind": "started",
+                    "turn_id": "root-turn",
+                },
+            ),
+            self.event(
+                self.now + timedelta(seconds=2),
+                "event_msg",
+                {
+                    "type": "task_complete",
+                    "turn_id": "root-turn",
+                    "last_agent_message": (
+                        "完成\n\nLuna 验收：adopted=2 partial=1 rejected=1 failed=1"
+                    ),
+                },
+            ),
+        ]
+        self.write(root_path, root_rows)
+        self.write(duplicate_path, root_rows)
+        self.write(
+            self.root / f"rollout-2026-08-03T00-00-01-{child_id}.jsonl",
+            [
+                self.metadata(self.now, child_id, parent=root_id, depth=1),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "child-turn"},
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["root_turns_with_luna_outcome_report"])
+        self.assertEqual(5, audit["luna_units_reported"])
+        self.assertEqual(2, audit["luna_units_adopted"])
+        self.assertEqual(1, audit["luna_units_partially_adopted"])
+        self.assertEqual(1, audit["luna_units_rejected"])
+        self.assertEqual(1, audit["luna_units_failed"])
+        self.assertEqual(0, audit["root_turns_missing_luna_outcome_report"])
+        self.assertEqual(0, audit["luna_outcome_reports_invalid"])
+
+    def test_zero_luna_outcome_report_is_valid(self) -> None:
+        root_id, child_id = "root-zero", "child-zero"
+        self.write(
+            self.root / "root-zero.jsonl",
+            [
+                self.metadata(self.now, root_id),
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "agent_thread_id": child_id,
+                        "kind": "started",
+                        "turn_id": "root-turn",
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=2),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": "root-turn",
+                        "last_agent_message": (
+                            "Luna 验收：adopted=0 partial=0 rejected=0 failed=0"
+                        ),
+                    },
+                ),
+            ],
+        )
+        self.write(
+            self.root / "child-zero.jsonl",
+            [
+                self.metadata(self.now, child_id, parent=root_id, depth=1),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "turn_aborted", "turn_id": "child-turn"},
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["root_turns_with_luna_outcome_report"])
+        self.assertEqual(0, audit["luna_units_reported"])
+        self.assertEqual(0, audit["root_turns_missing_luna_outcome_report"])
+        self.assertEqual(0, audit["luna_outcome_reports_invalid"])
+
+    def test_malformed_multiple_and_orphan_luna_outcomes_are_invalid(self) -> None:
+        malformed_status, _ = doctor._audit_luna_outcome(
+            ["Luna 验收：adopted=-1 partial=0 rejected=0 failed=0"]
+        )
+        repeated_status, _ = doctor._audit_luna_outcome(
+            [
+                "Luna 验收：adopted=1 partial=0 rejected=0 failed=0\n"
+                "Luna 验收：adopted=1 partial=0 rejected=0 failed=0"
+            ]
+        )
+        self.assertEqual("invalid", malformed_status)
+        self.assertEqual("invalid", repeated_status)
+
+        root_id, child_id = "root-invalid", "child-invalid"
+        self.write(
+            self.root / "root-invalid.jsonl",
+            [
+                self.metadata(self.now, root_id),
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "agent_thread_id": child_id,
+                        "kind": "started",
+                        "turn_id": "root-turn",
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=2),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": "root-turn",
+                        "last_agent_message": (
+                            "Luna 验收：adopted=1 partial=0 rejected=0 failed=0\n"
+                            "Luna 验收：adopted=0 partial=1 rejected=0 failed=0"
+                        ),
+                    },
+                ),
+            ],
+        )
+        self.write(
+            self.root / "child-invalid.jsonl",
+            [
+                self.metadata(self.now, child_id, parent=root_id, depth=1),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "child-turn"},
+                ),
+            ],
+        )
+        self.write(
+            self.root / "orphan.jsonl",
+            [
+                self.metadata(self.now, "orphan-root"),
+                self.event(
+                    self.now + timedelta(seconds=3),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": "orphan-turn",
+                        "last_agent_message": (
+                            "Luna 验收：adopted=1 partial=0 rejected=0 failed=0"
+                        ),
+                    },
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(0, audit["root_turns_with_luna_outcome_report"])
+        self.assertEqual(2, audit["luna_outcome_reports_invalid"])
+        self.assertEqual(0, audit["root_turns_missing_luna_outcome_report"])
 
     def test_interrupted_luna_is_session_deduplicated_and_not_successful(self) -> None:
         root_id = "root-interrupted"
@@ -1070,7 +1250,13 @@ class SessionAuditTests(unittest.TestCase):
                 self.event(
                     self.now + timedelta(seconds=3),
                     "event_msg",
-                    {"type": "task_complete", "turn_id": "root-turn", "last_agent_message": "root"},
+                    {
+                        "type": "task_complete",
+                        "turn_id": "root-turn",
+                        "last_agent_message": (
+                            "Luna 验收：adopted=1 partial=0 rejected=0 failed=0"
+                        ),
+                    },
                 ),
             ],
         )
@@ -1113,6 +1299,8 @@ class SessionAuditTests(unittest.TestCase):
         self.assertEqual(1, audit["luna_nested"])
         self.assertEqual(1, audit["root_turns_with_luna"])
         self.assertEqual(0, audit["successful_root_turns_with_luna"])
+        self.assertEqual(0, audit["root_turns_with_luna_outcome_report"])
+        self.assertEqual(1, audit["luna_outcome_reports_invalid"])
 
     def test_luna_config_limit_states(self) -> None:
         config = self.root / "config.toml"
@@ -1158,7 +1346,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("worktrees", payload["section_summaries"])
         self.assertIn("sessions", payload["section_summaries"])
         self.assertNotIn("docs", payload["section_summaries"])
-        self.assertEqual(5, payload["version"])
+        self.assertEqual(6, payload["version"])
         self.assertEqual(0, doctor.report_exit_code(report, strict=False))
         self.assertEqual(1, doctor.report_exit_code(report, strict=True))
 
@@ -1235,7 +1423,7 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(value, payload["session_audit"][field])
             if field.startswith("luna_") or field.startswith("root_"):
                 self.assertIn(f"{field}={value}", rendered)
-        self.assertEqual(5, payload["version"])
+        self.assertEqual(6, payload["version"])
 
     def test_docs_section_is_explicit_and_rendered(self) -> None:
         parser = doctor.build_parser()
