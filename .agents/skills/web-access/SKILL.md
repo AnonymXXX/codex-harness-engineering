@@ -15,6 +15,13 @@ metadata:
 
 # web-access Skill
 
+## Worker Routing
+
+Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's access phases.
+
+- Prefer `luna_worker` with `Route: web-access/research` for independent, read-only, multi-target research; workers return source evidence and do not perform mutations.
+- Keep synthesis, source reconciliation, login/session actions, browser interactions that mutate state, and external writes with the main agent.
+
 ## 前置检查
 
 在开始联网操作前，先检查 CDP 模式可用性：

@@ -8,16 +8,17 @@ Codex configuration into Git.
 
 ## Distribution Model
 
-- `core` installs global Harness rules, the `luna_worker` custom agent, and five core engineering skills.
+- `core` installs global Harness rules, the `luna_worker` and `terra_worker` custom agents, and five
+  core engineering skills.
 - `daily` extends `core` with frequently used portable skills.
 - A private overlay can be loaded from a separately cloned local repository by explicitly supplying
   its source path and profile. The public distribution does not discover, catalog, or clone overlays.
 - Managed files are symlinked into `~/.codex` and `~/.agents/skills` so Git remains the versioned
   source of truth.
 - Codex-managed system skills remain owned by Codex and are not copied into this repository.
-- Luna dispatches use the tracked five-field task contract and structured response contract. A root
-  task that uses Luna reports adopted, partially adopted, rejected, and failed work-unit counts in its
-  final answer so Harness Doctor can audit actual result use rather than infer it from completion.
+- Luna and Terra dispatches use the tracked route marker, five-field task contract, and structured response contract.
+  A root task reports adopted, partially adopted, rejected, and failed work-unit
+  counts for each Worker role it used so Harness Doctor can audit actual result use and route compliance.
 
 ## Recovery Contract
 
@@ -71,13 +72,14 @@ For an optional private overlay, clone it separately and rerun `install` and `ch
 absolute `--overlay-source` path and `--overlay-profile` name.
 
 The official `[agents].max_concurrent_threads_per_session` setting is the maximum number of
-concurrent agent threads outside the main Codex thread. On a new machine, merge the following
-section into the machine-specific `~/.codex/config.toml` while preserving unrelated settings:
+concurrent agent threads outside the main Codex thread. The total spawned-thread limit is `8` for this
+setup. On a new machine, merge the following section into the machine-specific `~/.codex/config.toml`
+while preserving unrelated settings:
 
 ```toml
 [agents]
 enabled = true
-max_concurrent_threads_per_session = 5
+max_concurrent_threads_per_session = 8
 ```
 
 The installer must not create, copy, link, or automatically overwrite this file. Codex reads the
@@ -97,9 +99,10 @@ path. Permanent deletion is not part of recovery or rollback.
 - `core` and `daily` resolve deterministically from the public `profiles.json`.
 - An explicit external overlay resolves only from its own Manifest and selected Profile.
 - A temporary empty HOME can install and check profiles twice without drift.
-- The installed `luna_worker` matches the tracked TOML and is available to fresh Codex tasks.
-- A fresh task can dispatch Luna with the structured contract and emits one machine-readable Luna
-  acceptance line after the main agent reviews the result.
+- The installed `luna_worker` and `terra_worker` match their tracked TOML files and are available to
+  fresh Codex tasks.
+- A fresh task can dispatch Luna and Terra with the structured contract and emits one machine-readable
+  acceptance line for each role used after the main agent reviews the results.
 - The tracked public Skill inventory matches the Manifest and actual directories.
 - Security checks reject real environment files, Codex config, private keys, nested Git metadata,
   generated caches, known credential formats, and hardcoded database passwords.

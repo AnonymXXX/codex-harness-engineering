@@ -27,7 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.9
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         tomllib = None  # type: ignore[assignment]
 
-REPORT_VERSION = 6
+REPORT_VERSION = 7
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FRONTMATTER_PATTERN = re.compile(r"^---\n(.*?)\n---(?:\n|$)", re.DOTALL)
 ROLLOUT_ID_PATTERN = re.compile(
@@ -41,6 +41,49 @@ LUNA_OUTCOME_PATTERN = re.compile(
     r"rejected=(?P<rejected>0|[1-9]\d*) "
     r"failed=(?P<failed>0|[1-9]\d*)$"
 )
+TERRA_OUTCOME_PREFIX = "Terra 验收："
+TERRA_OUTCOME_PATTERN = re.compile(
+    r"^Terra 验收：adopted=(?P<adopted>0|[1-9]\d*) "
+    r"partial=(?P<partial>0|[1-9]\d*) "
+    r"rejected=(?P<rejected>0|[1-9]\d*) "
+    r"failed=(?P<failed>0|[1-9]\d*)$"
+)
+WORKER_ROUTE_PATTERN = re.compile(
+    r"^Route: (?P<route>[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*)$",
+    re.MULTILINE,
+)
+WORKER_ROUTE_INLINE_PATTERN = re.compile(
+    r"Route: (?P<route>[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*)"
+)
+WORKER_NOT_DELEGATED_PREFIX = "Worker 路由："
+WORKER_NOT_DELEGATED_PATTERN = re.compile(
+    r"^Worker 路由：not_delegated reason="
+    r"(?P<reason>excluded|overlap|unavailable|unverifiable)$"
+)
+WORKER_ROLE_ALIASES = {
+    "luna_worker": "luna",
+    "luna": "luna",
+    "terra_worker": "terra",
+    "terra": "terra",
+}
+WORKER_ROUTE_EXPECTATIONS = {
+    "codebase-design/evidence": "luna",
+    "codebase-design/implementation": "terra",
+    "develop-uniapp-miniapp/small-change": "luna",
+    "develop-uniapp-miniapp/complex-implementation": "terra",
+    "diagnosing-bugs/evidence": "luna",
+    "diagnosing-bugs/fix": "terra",
+    "git-auto-commit/inspect": "luna",
+    "github-cli-ops/inventory": "luna",
+    "release-ops/inspect": "luna",
+    "tdd/tests": "luna",
+    "tdd/implementation": "terra",
+    "web-access/research": "luna",
+    "wechat-miniprogram-ci-upload/preflight": "luna",
+    "harness-engineering/routine": "luna",
+    "harness-engineering/heavy-implementation": "terra",
+    "harness-engineering/independent-verification": "luna",
+}
 HARNESS_SKILLS = {
     "codebase-design",
     "diagnosing-bugs",
@@ -106,6 +149,74 @@ def check(
     if details:
         item["details"] = details
     return item
+
+
+def discover_worker_routes(
+    skills_root: Path,
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    """Read standardized Route declarations from installed Skill instructions."""
+
+    routes = dict(WORKER_ROUTE_EXPECTATIONS)
+    checks: list[dict[str, Any]] = []
+    if not skills_root.is_dir():
+        return routes, checks
+    for skill_path in sorted(skills_root.glob("*/SKILL.md"), key=str):
+        try:
+            lines = skill_path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError) as exc:
+            checks.append(
+                check(
+                    "warning",
+                    "worker-route-skill-unreadable",
+                    f"Cannot inspect Worker routes in {skill_path}: {exc}",
+                    path=str(skill_path),
+                )
+            )
+            continue
+        for line_number, line in enumerate(lines, start=1):
+            matches = WORKER_ROUTE_INLINE_PATTERN.findall(line)
+            if not matches:
+                continue
+            roles = {
+                WORKER_ROLE_ALIASES[alias]
+                for alias in ("luna_worker", "terra_worker")
+                if re.search(rf"(?<![A-Za-z0-9_]){re.escape(alias)}(?![A-Za-z0-9_])", line)
+            }
+            if len(matches) != 1 or len(roles) != 1:
+                checks.append(
+                    check(
+                        "error",
+                        "worker-route-declaration-invalid",
+                        f"Worker Route declaration must name exactly one route and role: {skill_path}:{line_number}",
+                        path=str(skill_path),
+                        line=line_number,
+                    )
+                )
+                continue
+            route = matches[0]
+            role = next(iter(roles))
+            existing = routes.get(route)
+            if existing is not None and existing != role:
+                checks.append(
+                    check(
+                        "error",
+                        "worker-route-declaration-conflict",
+                        f"Worker Route {route} maps to both {existing} and {role}",
+                        path=str(skill_path),
+                        line=line_number,
+                    )
+                )
+                continue
+            routes[route] = role
+    if not checks:
+        checks.append(
+            check(
+                "ok",
+                "worker-routes-discovered",
+                f"Discovered {len(routes)} Worker routes",
+            )
+        )
+    return routes, checks
 
 
 def _load_yaml(path: Path) -> Any:
@@ -1278,7 +1389,7 @@ def _runtime_visibility_checks(expected: Sequence[str]) -> list[dict[str, Any]]:
 
 
 def _audit_default(days: int) -> dict[str, Any]:
-    """Return the stable session-audit contract, including Luna counters."""
+    """Return the stable session-audit contract, including Worker counters."""
 
     return {
         "days": days,
@@ -1302,6 +1413,35 @@ def _audit_default(days: int) -> dict[str, Any]:
         "root_turns_with_luna_outcome_report": 0,
         "root_turns_missing_luna_outcome_report": 0,
         "luna_outcome_reports_invalid": 0,
+        "terra_started": 0,
+        "terra_completed": 0,
+        "terra_interrupted": 0,
+        "terra_nested": 0,
+        "terra_peak_concurrency": 0,
+        "root_turns_with_terra": 0,
+        "successful_root_turns_with_terra": 0,
+        "terra_units_reported": 0,
+        "terra_units_adopted": 0,
+        "terra_units_partially_adopted": 0,
+        "terra_units_rejected": 0,
+        "terra_units_failed": 0,
+        "root_turns_with_terra_outcome_report": 0,
+        "root_turns_missing_terra_outcome_report": 0,
+        "terra_outcome_reports_invalid": 0,
+        "worker_started": 0,
+        "worker_completed": 0,
+        "worker_interrupted": 0,
+        "worker_nested": 0,
+        "worker_peak_concurrency": 0,
+        "root_turns_with_worker": 0,
+        "successful_root_turns_with_worker": 0,
+        "mixed_worker_root_turns": 0,
+        "route_units_reported": 0,
+        "route_units_matched": 0,
+        "route_units_mismatched": 0,
+        "route_units_unknown": 0,
+        "root_turns_without_worker_reason_report": 0,
+        "worker_route_reports_invalid": 0,
     }
 
 
@@ -1411,10 +1551,19 @@ def _audit_spawn_call(event: dict[str, Any]) -> dict[str, Any] | None:
     arguments = arguments if isinstance(arguments, dict) else {}
     role_values = [arguments.get("agent_type"), arguments.get("agent_role")]
     role = next((value for value in role_values if isinstance(value, str)), None)
+    worker_role = WORKER_ROLE_ALIASES.get(role) if isinstance(role, str) else None
+    message = arguments.get("message")
+    route_matches = (
+        WORKER_ROUTE_PATTERN.findall(message) if isinstance(message, str) else []
+    )
     return {
         "call_id": call_id.strip(),
         "session_turn": _audit_turn_id(event),
-        "luna": role in {"luna_worker", "luna"},
+        "worker_role": worker_role,
+        "luna": worker_role == "luna",
+        "terra": worker_role == "terra",
+        "route": route_matches[0] if len(route_matches) == 1 else None,
+        "route_invalid": isinstance(message, str) and "Route:" in message and len(route_matches) != 1,
     }
 
 
@@ -1461,7 +1610,20 @@ def _audit_activity_thread(payload: dict[str, Any]) -> str | None:
 
 def _audit_is_luna(info: dict[str, Any] | None) -> bool:
     role = info.get("agent_role") if info else None
-    return isinstance(role, str) and role in {"luna_worker", "luna"}
+    return isinstance(role, str) and WORKER_ROLE_ALIASES.get(role) == "luna"
+
+
+def _audit_is_terra(info: dict[str, Any] | None) -> bool:
+    role = info.get("agent_role") if info else None
+    return isinstance(role, str) and WORKER_ROLE_ALIASES.get(role) == "terra"
+
+
+def _audit_is_worker(info: dict[str, Any] | None) -> bool:
+    return _audit_is_luna(info) or _audit_is_terra(info)
+
+
+def _audit_is_role(info: dict[str, Any] | None, role: str) -> bool:
+    return _audit_is_luna(info) if role == "luna" else _audit_is_terra(info)
 
 
 def _audit_is_root(info: dict[str, Any] | None) -> bool:
@@ -1471,27 +1633,60 @@ def _audit_is_root(info: dict[str, Any] | None) -> bool:
     return not info or not info.get("is_subagent", False)
 
 
-def _audit_luna_key(session_key: str, turn_id: str | None) -> str:
+def _audit_worker_key(session_key: str, turn_id: str | None) -> str:
     return f"{session_key}:turn:{turn_id}" if turn_id else f"{session_key}:session"
 
 
-def _audit_luna_outcome(
+def _audit_outcome(
     messages: Iterable[str],
+    *,
+    prefix: str,
+    pattern: re.Pattern[str],
 ) -> tuple[str, dict[str, int] | None]:
     lines = [
         line.strip()
         for message in set(messages)
         for line in message.splitlines()
-        if line.strip().startswith(LUNA_OUTCOME_PREFIX)
+        if line.strip().startswith(prefix)
     ]
     if not lines:
         return "missing", None
     if len(lines) != 1:
         return "invalid", None
-    match = LUNA_OUTCOME_PATTERN.fullmatch(lines[0])
+    match = pattern.fullmatch(lines[0])
     if not match:
         return "invalid", None
     return "valid", {name: int(value) for name, value in match.groupdict().items()}
+
+
+def _audit_luna_outcome(messages: Iterable[str]) -> tuple[str, dict[str, int] | None]:
+    return _audit_outcome(
+        messages,
+        prefix=LUNA_OUTCOME_PREFIX,
+        pattern=LUNA_OUTCOME_PATTERN,
+    )
+
+
+def _audit_terra_outcome(messages: Iterable[str]) -> tuple[str, dict[str, int] | None]:
+    return _audit_outcome(
+        messages,
+        prefix=TERRA_OUTCOME_PREFIX,
+        pattern=TERRA_OUTCOME_PATTERN,
+    )
+
+
+def _audit_not_delegated(messages: Iterable[str]) -> str:
+    lines = [
+        line.strip()
+        for message in set(messages)
+        for line in message.splitlines()
+        if line.strip().startswith(WORKER_NOT_DELEGATED_PREFIX)
+    ]
+    if not lines:
+        return "missing"
+    if len(lines) != 1 or not WORKER_NOT_DELEGATED_PATTERN.fullmatch(lines[0]):
+        return "invalid"
+    return "valid"
 
 
 def _audit_rollout_id(path: str) -> str | None:
@@ -1499,7 +1694,12 @@ def _audit_rollout_id(path: str) -> str | None:
     return match.group("id") if match else None
 
 
-def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
+def audit_sessions(
+    session_root: Path,
+    days: int,
+    *,
+    route_expectations: dict[str, str] | None = None,
+) -> dict[str, Any]:
     result = _audit_default(days)
     if days <= 0 or not session_root.is_dir():
         return result
@@ -1638,7 +1838,6 @@ def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
     root_completed_turns: set[str] = set()
     root_turns_by_session: dict[str, set[str]] = {}
     root_completion_messages: dict[tuple[str, str], set[str]] = {}
-    root_luna_turns: set[tuple[str, str]] = set()
     anonymous_sequence = 0
     for record in current_records:
         if record["kind"] != "task_complete":
@@ -1703,7 +1902,7 @@ def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
         if not thread_id:
             continue
         parent_info = sessions.get(record["session_key"])
-        if _audit_is_luna(parent_info):
+        if _audit_is_worker(parent_info):
             continue
         turn_id = _audit_turn_id(record["event"])
         if not turn_id and activity["event_id"] in spawn_calls:
@@ -1713,267 +1912,351 @@ def audit_sessions(session_root: Path, days: int) -> dict[str, Any]:
             turn_id = explicit_parent_turn.strip()
         parent_turn_by_thread[thread_id] = (record["session_key"], turn_id)
 
-    luna_start_keys: set[str] = set()
-    luna_nested_keys: set[str] = set()
-    luna_end_keys: set[str] = set()
-    luna_completed_sessions: set[str] = set()
-    luna_task_completed_sessions: set[str] = set()
-    luna_interrupted_sessions: set[str] = set()
-    lifecycle: list[tuple[datetime, str, str]] = []
-    root_context_by_luna: dict[str, tuple[str, str | None]] = {}
+    def audit_role(role: str) -> dict[str, Any]:
+        start_keys: set[str] = set()
+        nested_keys: set[str] = set()
+        end_keys: set[str] = set()
+        completed_sessions: set[str] = set()
+        task_completed_sessions: set[str] = set()
+        interrupted_sessions: set[str] = set()
+        lifecycle: list[tuple[datetime, str, str]] = []
+        root_context_by_worker: dict[str, tuple[str, str | None]] = {}
 
-    def mark_start(key: str, when: datetime, info: dict[str, Any] | None = None) -> None:
-        if key in luna_start_keys:
-            return
-        luna_start_keys.add(key)
-        lifecycle.append((when, "start", key))
-        if info and (
-            (info.get("depth") is not None and info.get("depth", 0) > 1)
-            or info.get("parent_thread_id") in luna_start_keys
-        ):
-            luna_nested_keys.add(key)
+        def mark_start(key: str, when: datetime, info: dict[str, Any] | None = None) -> None:
+            if key in start_keys:
+                return
+            start_keys.add(key)
+            lifecycle.append((when, "start", key))
+            parent_info = sessions.get(info.get("parent_thread_id")) if info else None
+            if info and (
+                (info.get("depth") is not None and info.get("depth", 0) > 1)
+                or _audit_is_worker(parent_info)
+            ):
+                nested_keys.add(key)
 
-    def mark_end(key: str, when: datetime) -> None:
-        if key not in luna_start_keys:
-            mark_start(key, when, sessions.get(key))
-        if key in luna_end_keys:
-            return
-        luna_end_keys.add(key)
-        lifecycle.append((when, "end", key))
+        def mark_end(key: str, when: datetime) -> None:
+            if key not in start_keys:
+                mark_start(key, when, sessions.get(key))
+            if key in end_keys:
+                return
+            end_keys.add(key)
+            lifecycle.append((when, "end", key))
 
-    def resolve_activity_key(activity: dict[str, Any]) -> tuple[str | None, dict[str, Any] | None]:
-        thread_id = activity.get("thread_id")
-        spawn = spawn_calls.get(activity.get("event_id"))
-        if spawn and spawn.get("failed"):
+        def resolve_activity_key(
+            activity: dict[str, Any],
+        ) -> tuple[str | None, dict[str, Any] | None]:
+            thread_id = activity.get("thread_id")
+            spawn = spawn_calls.get(activity.get("event_id"))
+            if spawn and spawn.get("failed"):
+                return None, None
+            if thread_id and _audit_is_role(sessions.get(thread_id), role):
+                return thread_id, sessions.get(thread_id)
+            if spawn and spawn.get("worker_role") == role:
+                key = thread_id or f"spawn:{activity['event_id']}"
+                return key, sessions.get(key)
             return None, None
-        if thread_id and _audit_is_luna(sessions.get(thread_id)):
-            return thread_id, sessions.get(thread_id)
-        if spawn and spawn.get("luna"):
-            key = thread_id or f"spawn:{activity['event_id']}"
-            info = sessions.get(key)
-            return key, info
-        return None, None
 
-    # A session_meta record is the authoritative Luna role marker. Count it once
-    # even when the parent activity is duplicated or absent.
-    for session_key, info in sessions.items():
-        if _audit_is_luna(info) and info.get("meta_current"):
-            mark_start(session_key, info.get("meta_time") or cutoff, info)
+        for session_key, info in sessions.items():
+            if _audit_is_role(info, role) and info.get("meta_current"):
+                mark_start(session_key, info.get("meta_time") or cutoff, info)
 
-    for activity in activity_records:
-        if activity.get("kind") != "started":
-            continue
-        key, info = resolve_activity_key(activity)
-        if not key:
-            continue
-        record = activity["record"]
-        mark_start(key, record["time"], info)
-        parent = parent_turn_by_thread.get(activity.get("thread_id"))
-        if parent:
-            root_context_by_luna[key] = parent
+        for activity in activity_records:
+            if activity.get("kind") != "started":
+                continue
+            key, info = resolve_activity_key(activity)
+            if not key:
+                continue
+            mark_start(key, activity["record"]["time"], info)
+            parent = parent_turn_by_thread.get(activity.get("thread_id"))
+            if parent:
+                root_context_by_worker[key] = parent
 
-    # spawn_agent is still useful when a partial/corrupt log has no activity
-    # marker. Match it to the nearest known child before creating a provisional
-    # key, which prevents duplicate starts across the two event sources.
-    assigned_children: set[str] = set()
-    for activity in activity_records:
-        thread_id = activity.get("thread_id")
-        if thread_id and activity.get("kind") == "started" and thread_id in luna_start_keys:
-            assigned_children.add(thread_id)
-    for call_id, spawn in spawn_calls.items():
-        if spawn.get("failed") or not spawn.get("luna") or call_id in {
-            activity.get("event_id") for activity in activity_records if activity.get("event_id")
-        }:
-            continue
-        parent_session = spawn["session_key"]
-        candidates = [
-            (key, info)
-            for key, info in sessions.items()
-            if _audit_is_luna(info)
-            and info.get("parent_thread_id") == parent_session
-            and key not in assigned_children
-        ]
-        candidate = min(
-            candidates,
-            key=lambda item: abs((item[1].get("meta_time") or spawn["time"]) - spawn["time"]),
-            default=None,
-        )
-        key = candidate[0] if candidate else f"spawn:{call_id}"
-        info = candidate[1] if candidate else None
-        mark_start(key, spawn["time"], info)
-        if info:
-            assigned_children.add(key)
-        root_context_by_luna.setdefault(key, (parent_session, spawn.get("session_turn")))
+        assigned_children: set[str] = set()
+        activity_call_ids = {
+            activity.get("event_id")
+            for activity in activity_records
+            if activity.get("event_id")
+        }
+        for activity in activity_records:
+            thread_id = activity.get("thread_id")
+            if thread_id and activity.get("kind") == "started" and thread_id in start_keys:
+                assigned_children.add(thread_id)
+        for call_id, spawn in spawn_calls.items():
+            if (
+                spawn.get("failed")
+                or spawn.get("worker_role") != role
+                or call_id in activity_call_ids
+            ):
+                continue
+            parent_session = spawn["session_key"]
+            candidates = [
+                (key, info)
+                for key, info in sessions.items()
+                if _audit_is_role(info, role)
+                and info.get("parent_thread_id") == parent_session
+                and key not in assigned_children
+            ]
+            candidate = min(
+                candidates,
+                key=lambda item: abs(
+                    (item[1].get("meta_time") or spawn["time"]) - spawn["time"]
+                ),
+                default=None,
+            )
+            key = candidate[0] if candidate else f"spawn:{call_id}"
+            info = candidate[1] if candidate else None
+            mark_start(key, spawn["time"], info)
+            if info:
+                assigned_children.add(key)
+            root_context_by_worker.setdefault(
+                key, (parent_session, spawn.get("session_turn"))
+            )
 
-    # Child task status is processed before parent completion/interruption markers
-    # so a marker without turn_id can reuse the child turn rather than double count.
-    status_turns_by_session: dict[str, set[str]] = {}
-    for record in current_records:
-        if record["kind"] not in {"task_complete", "turn_aborted"}:
-            continue
-        session_key = record["session_key"]
-        info = sessions.get(session_key)
-        if not _audit_is_luna(info):
-            continue
-        turn_id = _audit_turn_id(record["event"])
-        turn_key = _audit_luna_key(session_key, turn_id)
-        mark_start(session_key, record["time"], info)
-        status_turns_by_session.setdefault(session_key, set()).add(turn_key)
-        if record["kind"] == "task_complete":
-            luna_completed_sessions.add(session_key)
-            luna_task_completed_sessions.add(session_key)
-        else:
-            luna_interrupted_sessions.add(session_key)
-        mark_end(session_key, record["time"])
-
-    for activity in activity_records:
-        if activity.get("kind") not in {"completed", "interrupted"}:
-            continue
-        key, info = resolve_activity_key(activity)
-        if not key:
-            continue
-        payload = activity["payload"]
-        turn_id = _audit_turn_id({"payload": payload})
-        if not turn_id and len(status_turns_by_session.get(key, set())) == 1:
-            status_key = next(iter(status_turns_by_session[key]))
-        else:
-            status_key = _audit_luna_key(key, turn_id)
-        mark_start(key, activity["record"]["time"], info)
-        status_turns_by_session.setdefault(key, set()).add(status_key)
-        if activity["kind"] == "completed":
-            luna_completed_sessions.add(key)
-        else:
-            luna_interrupted_sessions.add(key)
-        mark_end(key, activity["record"]["time"])
-
-    # Resolve nested/root ancestry after all metadata and activity links exist.
-    def root_context(session_key: str) -> tuple[str | None, str | None]:
-        if session_key in root_context_by_luna:
-            parent_session, turn_id = root_context_by_luna[session_key]
-        else:
-            info = sessions.get(session_key) or {}
-            parent_session = info.get("parent_thread_id")
-            turn_id = None
-        seen: set[str] = set()
-        while parent_session and parent_session not in seen:
-            seen.add(parent_session)
-            parent_info = sessions.get(parent_session)
-            if not parent_info or _audit_is_root(parent_info):
-                return parent_session, turn_id
-            inherited = root_context_by_luna.get(parent_session)
-            if inherited:
-                parent_session, inherited_turn = inherited
-                turn_id = turn_id or inherited_turn
+        status_turns_by_session: dict[str, set[str]] = {}
+        for record in current_records:
+            if record["kind"] not in {"task_complete", "turn_aborted"}:
+                continue
+            session_key = record["session_key"]
+            info = sessions.get(session_key)
+            if not _audit_is_role(info, role):
+                continue
+            turn_id = _audit_turn_id(record["event"])
+            turn_key = _audit_worker_key(session_key, turn_id)
+            mark_start(session_key, record["time"], info)
+            status_turns_by_session.setdefault(session_key, set()).add(turn_key)
+            if record["kind"] == "task_complete":
+                completed_sessions.add(session_key)
+                task_completed_sessions.add(session_key)
             else:
+                interrupted_sessions.add(session_key)
+            mark_end(session_key, record["time"])
+
+        for activity in activity_records:
+            if activity.get("kind") not in {"completed", "interrupted"}:
+                continue
+            key, info = resolve_activity_key(activity)
+            if not key:
+                continue
+            turn_id = _audit_turn_id({"payload": activity["payload"]})
+            if not turn_id and len(status_turns_by_session.get(key, set())) == 1:
+                status_key = next(iter(status_turns_by_session[key]))
+            else:
+                status_key = _audit_worker_key(key, turn_id)
+            mark_start(key, activity["record"]["time"], info)
+            status_turns_by_session.setdefault(key, set()).add(status_key)
+            if activity["kind"] == "completed":
+                completed_sessions.add(key)
+            else:
+                interrupted_sessions.add(key)
+            mark_end(key, activity["record"]["time"])
+
+        def root_context(session_key: str) -> tuple[str | None, str | None]:
+            if session_key in root_context_by_worker:
+                parent_session, turn_id = root_context_by_worker[session_key]
+            else:
+                info = sessions.get(session_key) or {}
+                parent_session = info.get("parent_thread_id")
+                turn_id = None
+            seen: set[str] = set()
+            while parent_session and parent_session not in seen:
+                seen.add(parent_session)
+                parent_info = sessions.get(parent_session)
+                if not parent_info or _audit_is_root(parent_info):
+                    return parent_session, turn_id
+                inherited = root_context_by_worker.get(parent_session)
+                if inherited:
+                    parent_session, inherited_turn = inherited
+                    turn_id = turn_id or inherited_turn
+                    continue
                 inherited_parent = parent_turn_by_thread.get(parent_session)
                 if inherited_parent:
                     parent_session, inherited_turn = inherited_parent
                     turn_id = inherited_turn or turn_id
                 else:
                     parent_session = parent_info.get("parent_thread_id")
-        return parent_session, turn_id
+            return parent_session, turn_id
 
-    direct_root_luna_turns: set[tuple[str, str]] = set()
-    for key in luna_start_keys:
-        info = sessions.get(key)
-        parent_id = info.get("parent_thread_id") if info else None
-        parent_info = sessions.get(parent_id) if parent_id else None
-        if info and (
-            (info.get("depth") is not None and info.get("depth", 0) > 1)
-            or (parent_id is not None and parent_info is not None and not _audit_is_root(parent_info))
-        ):
-            luna_nested_keys.add(key)
-        root_session, turn_id = root_context(key)
-        if not root_session:
-            continue
-        if not turn_id and len(root_turns_by_session.get(root_session, set())) == 1:
-            turn_id = next(iter(root_turns_by_session[root_session]))
-        if turn_id:
-            root_luna_turns.add((root_session, turn_id))
-            recorded_parent = root_context_by_luna.get(key, (None, None))[0]
+        root_turns: set[tuple[str, str]] = set()
+        direct_root_turns: set[tuple[str, str]] = set()
+        for key in start_keys:
+            info = sessions.get(key)
+            parent_id = info.get("parent_thread_id") if info else None
+            parent_info = sessions.get(parent_id) if parent_id else None
+            if info and (
+                (info.get("depth") is not None and info.get("depth", 0) > 1)
+                or (parent_info is not None and not _audit_is_root(parent_info))
+            ):
+                nested_keys.add(key)
+            root_session, turn_id = root_context(key)
+            if not root_session:
+                continue
+            if not turn_id and len(root_turns_by_session.get(root_session, set())) == 1:
+                turn_id = next(iter(root_turns_by_session[root_session]))
+            if not turn_id:
+                continue
+            root_turns.add((root_session, turn_id))
+            recorded_parent = root_context_by_worker.get(key, (None, None))[0]
             metadata_parent = info.get("parent_thread_id") if info else None
             direct_parent = (
                 metadata_parent == root_session
                 if metadata_parent
                 else recorded_parent == root_session
             )
-            if direct_parent and key not in luna_nested_keys:
-                direct_root_luna_turns.add((root_session, turn_id))
+            if direct_parent and key not in nested_keys:
+                direct_root_turns.add((root_session, turn_id))
 
+        successful_root_turns: set[tuple[str, str]] = set()
+        for worker_session in task_completed_sessions:
+            info = sessions.get(worker_session) or {}
+            root_session, turn_id = root_context(worker_session)
+            if (
+                root_session
+                and turn_id
+                and info.get("parent_thread_id") == root_session
+                and (root_session, turn_id) in root_turns
+                and turn_id in root_turns_by_session.get(root_session, set())
+            ):
+                successful_root_turns.add((root_session, turn_id))
+
+        completed_direct_turns = {
+            (session_key, turn_id)
+            for session_key, turn_id in direct_root_turns
+            if turn_id in root_turns_by_session.get(session_key, set())
+        }
+        outcome_parser = _audit_luna_outcome if role == "luna" else _audit_terra_outcome
+        for root_turn in completed_direct_turns:
+            outcome_status, outcome = outcome_parser(
+                root_completion_messages.get(root_turn, set())
+            )
+            if outcome_status == "missing":
+                result[f"root_turns_missing_{role}_outcome_report"] += 1
+                continue
+            if outcome_status == "invalid" or outcome is None:
+                result[f"{role}_outcome_reports_invalid"] += 1
+                continue
+            result[f"root_turns_with_{role}_outcome_report"] += 1
+            result[f"{role}_units_adopted"] += outcome["adopted"]
+            result[f"{role}_units_partially_adopted"] += outcome["partial"]
+            result[f"{role}_units_rejected"] += outcome["rejected"]
+            result[f"{role}_units_failed"] += outcome["failed"]
+
+        for root_turn, messages in root_completion_messages.items():
+            if root_turn in completed_direct_turns:
+                continue
+            outcome_status, _outcome = outcome_parser(messages)
+            if outcome_status != "missing":
+                result[f"{role}_outcome_reports_invalid"] += 1
+
+        result[f"{role}_started"] = len(start_keys)
+        result[f"{role}_completed"] = len(completed_sessions)
+        result[f"{role}_interrupted"] = len(interrupted_sessions - completed_sessions)
+        result[f"{role}_nested"] = len(nested_keys)
+        result[f"root_turns_with_{role}"] = len(root_turns)
+        result[f"successful_root_turns_with_{role}"] = len(successful_root_turns)
+        result[f"{role}_units_reported"] = (
+            result[f"{role}_units_adopted"]
+            + result[f"{role}_units_partially_adopted"]
+            + result[f"{role}_units_rejected"]
+            + result[f"{role}_units_failed"]
+        )
+
+        active: set[str] = set()
+        peak = 0
+        for _when, event_kind, key in sorted(
+            lifecycle,
+            key=lambda item: (item[0], 0 if item[1] == "start" else 1, item[2]),
+        ):
+            if event_kind == "start":
+                active.add(key)
+                peak = max(peak, len(active))
+            else:
+                active.discard(key)
+        result[f"{role}_peak_concurrency"] = peak
+        return {
+            "start_keys": start_keys,
+            "completed_sessions": completed_sessions,
+            "interrupted_sessions": interrupted_sessions,
+            "nested_keys": nested_keys,
+            "root_turns": root_turns,
+            "direct_root_turns": direct_root_turns,
+            "successful_root_turns": successful_root_turns,
+            "lifecycle": lifecycle,
+        }
+
+    role_audits = {role: audit_role(role) for role in ("luna", "terra")}
     result["completed"] = len(completed_turns)
     result["reports"] = sum(completed_turns.values())
-    result["luna_started"] = len(luna_start_keys)
-    result["luna_completed"] = len(luna_completed_sessions)
-    result["luna_interrupted"] = len(luna_interrupted_sessions - luna_completed_sessions)
-    result["luna_nested"] = len(luna_nested_keys)
-    result["root_turns_with_luna"] = len(root_luna_turns)
-    successful_root_luna_turns: set[tuple[str, str]] = set()
-    for luna_session in luna_task_completed_sessions:
-        info = sessions.get(luna_session) or {}
-        root_session, turn_id = root_context(luna_session)
-        # A root turn is successful only when a direct Luna child completed;
-        # nested worker completion alone does not establish root success.
-        if (
-            root_session
-            and turn_id
-            and info.get("parent_thread_id") == root_session
-            and (root_session, turn_id) in root_luna_turns
-            and turn_id in root_turns_by_session.get(root_session, set())
-        ):
-            successful_root_luna_turns.add((root_session, turn_id))
-    result["successful_root_turns_with_luna"] = len(successful_root_luna_turns)
-
-    completed_direct_turns = {
-        (session_key, turn_id)
-        for session_key, turn_id in direct_root_luna_turns
-        if turn_id in root_turns_by_session.get(session_key, set())
-    }
-    for root_turn in completed_direct_turns:
-        outcome_status, outcome = _audit_luna_outcome(
-            root_completion_messages.get(root_turn, set())
-        )
-        if outcome_status == "missing":
-            result["root_turns_missing_luna_outcome_report"] += 1
-            continue
-        if outcome_status == "invalid" or outcome is None:
-            result["luna_outcome_reports_invalid"] += 1
-            continue
-        result["root_turns_with_luna_outcome_report"] += 1
-        result["luna_units_adopted"] += outcome["adopted"]
-        result["luna_units_partially_adopted"] += outcome["partial"]
-        result["luna_units_rejected"] += outcome["rejected"]
-        result["luna_units_failed"] += outcome["failed"]
-
-    for root_turn, messages in root_completion_messages.items():
-        if root_turn in completed_direct_turns:
-            continue
-        outcome_status, _outcome = _audit_luna_outcome(messages)
-        if outcome_status != "missing":
-            result["luna_outcome_reports_invalid"] += 1
-
-    result["luna_units_reported"] = (
-        result["luna_units_adopted"]
-        + result["luna_units_partially_adopted"]
-        + result["luna_units_rejected"]
-        + result["luna_units_failed"]
+    result["worker_started"] = sum(result[f"{role}_started"] for role in role_audits)
+    result["worker_completed"] = sum(result[f"{role}_completed"] for role in role_audits)
+    result["worker_interrupted"] = sum(
+        result[f"{role}_interrupted"] for role in role_audits
+    )
+    result["worker_nested"] = sum(result[f"{role}_nested"] for role in role_audits)
+    worker_root_turns = set().union(
+        *(audit["root_turns"] for audit in role_audits.values())
+    )
+    direct_worker_root_turns = set().union(
+        *(audit["direct_root_turns"] for audit in role_audits.values())
+    )
+    successful_worker_root_turns = set().union(
+        *(audit["successful_root_turns"] for audit in role_audits.values())
+    )
+    result["root_turns_with_worker"] = len(worker_root_turns)
+    result["successful_root_turns_with_worker"] = len(successful_worker_root_turns)
+    result["mixed_worker_root_turns"] = len(
+        role_audits["luna"]["root_turns"] & role_audits["terra"]["root_turns"]
     )
 
-    active: set[str] = set()
-    peak = 0
+    combined_lifecycle = [
+        (when, event_kind, f"{role}:{key}")
+        for role, audit in role_audits.items()
+        for when, event_kind, key in audit["lifecycle"]
+    ]
+    active_workers: set[str] = set()
     for _when, event_kind, key in sorted(
-        lifecycle,
+        combined_lifecycle,
         key=lambda item: (item[0], 0 if item[1] == "start" else 1, item[2]),
     ):
         if event_kind == "start":
-            active.add(key)
-            peak = max(peak, len(active))
+            active_workers.add(key)
+            result["worker_peak_concurrency"] = max(
+                result["worker_peak_concurrency"], len(active_workers)
+            )
         else:
-            active.discard(key)
-    result["luna_peak_concurrency"] = peak
+            active_workers.discard(key)
+
+    for spawn in spawn_calls.values():
+        role = spawn.get("worker_role")
+        if spawn.get("failed") or role not in role_audits:
+            continue
+        route = spawn.get("route")
+        if not route:
+            result["route_units_unknown"] += 1
+            if spawn.get("route_invalid"):
+                result["worker_route_reports_invalid"] += 1
+            continue
+        result["route_units_reported"] += 1
+        expected_role = (route_expectations or WORKER_ROUTE_EXPECTATIONS).get(route)
+        if expected_role is None:
+            result["route_units_unknown"] += 1
+        elif expected_role == role:
+            result["route_units_matched"] += 1
+        else:
+            result["route_units_mismatched"] += 1
+
+    for root_turn, messages in root_completion_messages.items():
+        route_status = _audit_not_delegated(messages)
+        if root_turn in direct_worker_root_turns:
+            if route_status != "missing":
+                result["worker_route_reports_invalid"] += 1
+        elif route_status == "valid":
+            result["root_turns_without_worker_reason_report"] += 1
+        elif route_status == "invalid":
+            result["worker_route_reports_invalid"] += 1
     return result
 
 
-def _lightweight_luna_config(text: str) -> dict[str, Any]:
+def _lightweight_worker_config(text: str) -> dict[str, Any]:
     """Parse just the agents setting when tomllib/tomli is unavailable."""
 
     section: str | None = None
@@ -1992,11 +2275,16 @@ def _lightweight_luna_config(text: str) -> dict[str, Any]:
         match = re.fullmatch(r"([A-Za-z0-9_-]+)\s*=\s*(.+)", line)
         if not match:
             raise ValueError("malformed TOML assignment")
-        if section != "agents" or match.group(1) != "max_concurrent_threads_per_session":
+        if section != "agents" or match.group(1) not in {
+            "enabled",
+            "max_concurrent_threads_per_session",
+        }:
             continue
         raw_value = match.group(2).strip()
         if re.fullmatch(r"[+-]?\d+", raw_value):
             values[match.group(1)] = int(raw_value)
+        elif raw_value in {"true", "false"}:
+            values[match.group(1)] = raw_value == "true"
         elif (
             len(raw_value) >= 2
             and raw_value[0] == raw_value[-1]
@@ -2008,8 +2296,67 @@ def _lightweight_luna_config(text: str) -> dict[str, Any]:
     return {"agents": values}
 
 
+def check_worker_config(config_path: Path) -> list[dict[str, Any]]:
+    """Check the local Worker concurrency guard without changing config.toml."""
+
+    if not config_path.is_file():
+        return [
+            check(
+                "warning",
+                "worker-concurrency-limit-missing",
+                f"Worker concurrency configuration is missing: {config_path}",
+                section="sessions",
+                path=str(config_path),
+                expected=8,
+            )
+        ]
+    try:
+        text = config_path.read_text(encoding="utf-8")
+        if tomllib is not None:
+            data = tomllib.loads(text)
+        else:
+            data = _lightweight_worker_config(text)
+    except (OSError, UnicodeError, ValueError) as exc:
+        return [
+            check(
+                "error",
+                "worker-config-invalid",
+                f"Cannot parse Worker config {config_path}: {exc}",
+                section="sessions",
+                path=str(config_path),
+            )
+        ]
+    agents = data.get("agents") if isinstance(data, dict) else None
+    value = agents.get("max_concurrent_threads_per_session") if isinstance(agents, dict) else None
+    enabled = agents.get("enabled") if isinstance(agents, dict) else None
+    if enabled is True and isinstance(value, int) and not isinstance(value, bool) and value == 8:
+        return [
+            check(
+                "ok",
+                "worker-concurrency-limit-ok",
+                "Worker concurrency is enabled with a spawned-thread limit of 8",
+                section="sessions",
+                path=str(config_path),
+                value=value,
+            )
+        ]
+    return [
+        check(
+            "warning",
+            "worker-concurrency-limit-mismatch",
+            "Worker configuration should set agents.enabled=true and "
+            f"max_concurrent_threads_per_session=8; found enabled={enabled!r}, limit={value!r}",
+            section="sessions",
+            path=str(config_path),
+            expected=8,
+            enabled=enabled,
+            value=value,
+        )
+    ]
+
+
 def check_luna_config(config_path: Path) -> list[dict[str, Any]]:
-    """Check the local Luna concurrency guard without changing config.toml."""
+    """Compatibility wrapper for callers of the report-v6 helper."""
 
     if not config_path.is_file():
         return [
@@ -2024,10 +2371,7 @@ def check_luna_config(config_path: Path) -> list[dict[str, Any]]:
         ]
     try:
         text = config_path.read_text(encoding="utf-8")
-        if tomllib is not None:
-            data = tomllib.loads(text)
-        else:
-            data = _lightweight_luna_config(text)
+        data = tomllib.loads(text) if tomllib is not None else _lightweight_worker_config(text)
     except (OSError, UnicodeError, ValueError) as exc:
         return [
             check(
@@ -2062,6 +2406,90 @@ def check_luna_config(config_path: Path) -> list[dict[str, Any]]:
             value=value,
         )
     ]
+
+
+def check_worker_session_policy(session_audit: dict[str, Any]) -> list[dict[str, Any]]:
+    """Report Worker routing or concurrency violations found in session logs."""
+
+    checks: list[dict[str, Any]] = []
+    worker_peak = session_audit.get("worker_peak_concurrency", 0)
+    luna_peak = session_audit.get("luna_peak_concurrency", 0)
+    nested = session_audit.get("worker_nested", 0)
+    mismatched = session_audit.get("route_units_mismatched", 0)
+    unknown = session_audit.get("route_units_unknown", 0)
+    invalid = session_audit.get("worker_route_reports_invalid", 0)
+    if isinstance(worker_peak, int) and worker_peak > 8:
+        checks.append(
+            check(
+                "warning",
+                "worker-concurrency-over-limit",
+                f"Worker peak concurrency exceeded 8: {worker_peak}",
+                section="sessions",
+                expected=8,
+                value=worker_peak,
+            )
+        )
+    if isinstance(luna_peak, int) and luna_peak > 5:
+        checks.append(
+            check(
+                "warning",
+                "luna-concurrency-over-limit",
+                f"Luna peak concurrency exceeded 5: {luna_peak}",
+                section="sessions",
+                expected=5,
+                value=luna_peak,
+            )
+        )
+    if isinstance(nested, int) and nested > 0:
+        checks.append(
+            check(
+                "warning",
+                "nested-worker-detected",
+                f"Nested Worker sessions detected: {nested}",
+                section="sessions",
+                value=nested,
+            )
+        )
+    if isinstance(mismatched, int) and mismatched > 0:
+        checks.append(
+            check(
+                "warning",
+                "worker-route-mismatch",
+                f"Worker route mismatches detected: {mismatched}",
+                section="sessions",
+                value=mismatched,
+            )
+        )
+    if isinstance(unknown, int) and unknown > 0:
+        checks.append(
+            check(
+                "warning",
+                "worker-route-unknown",
+                f"Worker units with a missing or unregistered Route: {unknown}",
+                section="sessions",
+                value=unknown,
+            )
+        )
+    if isinstance(invalid, int) and invalid > 0:
+        checks.append(
+            check(
+                "warning",
+                "worker-route-report-invalid",
+                f"Invalid Worker route reports detected: {invalid}",
+                section="sessions",
+                value=invalid,
+            )
+        )
+    if not checks:
+        checks.append(
+            check(
+                "ok",
+                "worker-session-policy-ok",
+                "Worker session concurrency, nesting, and route reports are within policy",
+                section="sessions",
+            )
+        )
+    return checks
 
 
 def make_report(
@@ -2155,28 +2583,20 @@ def render_report(report: dict[str, Any], output_format: str) -> str:
                 f" completed={section_summary['completed']}"
                 f" duplicates_skipped={section_summary.get('duplicates_skipped', 0)}"
                 f" reports={section_summary['reports']}"
-                f" root_completed={section_summary.get('root_completed', 0)}"
-                f" luna_started={section_summary.get('luna_started', 0)}"
-                f" luna_completed={section_summary.get('luna_completed', 0)}"
-                f" luna_interrupted={section_summary.get('luna_interrupted', 0)}"
-                f" luna_nested={section_summary.get('luna_nested', 0)}"
-                f" luna_peak_concurrency={section_summary.get('luna_peak_concurrency', 0)}"
-                f" root_turns_with_luna={section_summary.get('root_turns_with_luna', 0)}"
-                f" successful_root_turns_with_luna="
-                f"{section_summary.get('successful_root_turns_with_luna', 0)}"
-                f" luna_units_reported={section_summary.get('luna_units_reported', 0)}"
-                f" luna_units_adopted={section_summary.get('luna_units_adopted', 0)}"
-                f" luna_units_partially_adopted="
-                f"{section_summary.get('luna_units_partially_adopted', 0)}"
-                f" luna_units_rejected={section_summary.get('luna_units_rejected', 0)}"
-                f" luna_units_failed={section_summary.get('luna_units_failed', 0)}"
-                f" root_turns_with_luna_outcome_report="
-                f"{section_summary.get('root_turns_with_luna_outcome_report', 0)}"
-                f" root_turns_missing_luna_outcome_report="
-                f"{section_summary.get('root_turns_missing_luna_outcome_report', 0)}"
-                f" luna_outcome_reports_invalid="
-                f"{section_summary.get('luna_outcome_reports_invalid', 0)}"
             )
+            base_fields = {
+                "errors",
+                "warnings",
+                "ok",
+                "days",
+                "raw_completed",
+                "completed",
+                "duplicates_skipped",
+                "reports",
+            }
+            for field in _audit_default(0):
+                if field not in base_fields:
+                    section_line += f" {field}={section_summary.get(field, 0)}"
         elif section == "docs":
             section_line += (
                 f" repositories={section_summary.get('repositories', 0)}"
@@ -2222,6 +2642,7 @@ def _doctor_command(args: argparse.Namespace) -> int:
     index_path = home / ".agents" / "skills-index.md"
     sections = args.section or (["skills", "worktrees", "sessions"] if args.full else ["skills"])
     checks: list[dict[str, Any]] = []
+    worker_routes, worker_route_checks = discover_worker_routes(skills_root)
     if "skills" in sections:
         skills, discovery_checks = discover_skills(skills_root)
         checks.extend(
@@ -2230,6 +2651,7 @@ def _doctor_command(args: argparse.Namespace) -> int:
             else [item for item in discovery_checks if item["severity"] == "error"]
         )
         checks.extend(_harness_checks(home, skills))
+        checks.extend(worker_route_checks)
         index_result = update_skill_index(skills_root, index_path, write=False)
         if index_result["exit_code"]:
             checks.append(
@@ -2258,8 +2680,13 @@ def _doctor_command(args: argparse.Namespace) -> int:
             worktrees, worktree_checks = scan_worktrees(roots)
             checks.extend(worktree_checks)
         if "sessions" in sections:
-            session_audit = audit_sessions(home / ".codex" / "sessions", args.session_days)
-            checks.extend(check_luna_config(home / ".codex" / "config.toml"))
+            session_audit = audit_sessions(
+                home / ".codex" / "sessions",
+                args.session_days,
+                route_expectations=worker_routes,
+            )
+            checks.extend(check_worker_config(home / ".codex" / "config.toml"))
+            checks.extend(check_worker_session_policy(session_audit))
         if "docs" in sections:
             roots = args.repo_root or _default_repo_roots(home)
             docs_audit, docs_checks = scan_documents(

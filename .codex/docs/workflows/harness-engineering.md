@@ -22,14 +22,19 @@ Use for medium or large changes, shared behavior or contracts, configuration, ge
 
 File count is a signal, not a hard boundary. A one-file security change is Heavy Lane; a cohesive three-file local fix can remain Fast Lane.
 
-## Luna Worker Delegation
+## Worker-first Delegation
 
-Luna scheduling is a coverage gate after risk classification, not an optional optimization. For every
-non-simple engineering task, the main agent must classify the risk lane first and then proactively scan
-the task graph for bounded Luna work units. A simple task is a clear, isolated one-step action whose
-expected execution is below both of these thresholds; it may remain direct after the scan. When the
-task is expected to require at least 2 substantive tool steps or to run longer than 60 seconds,
-delegation is the priority before the main agent performs that eligible work.
+Worker scheduling is a coverage gate after risk classification, not an optional optimization. For every
+non-simple engineering task, the main agent must classify the risk lane and route eligible execution to
+direct Workers before doing that work itself. A simple task is a clear, isolated one-step action expected
+to finish within 45 seconds; it may remain direct after the scan. Work expected to require at least 2
+substantive tool steps or more than 45 seconds must use a Worker unless an exclusion below applies.
+
+Use `luna_worker` for clear routine units such as inventory, contract tracing, test authoring or execution,
+read-only research, focused validation, and isolated local changes. Use `terra_worker` for bounded Heavy
+Lane implementation after the main agent has resolved architecture, product, dependency, migration, and
+release decisions. Terra complexity means a larger implementation unit with fixed interfaces and an
+objective check, not an invitation to delegate ambiguity.
 
 ### Work-unit coverage
 
@@ -49,7 +54,8 @@ never the original worktree by accident.
 
 ### Dispatch and response contract
 
-Every Luna dispatch prompt uses these five headings, even when a field is `N/A`:
+Every Worker dispatch starts with exactly one `Route: <skill>/<phase>` line, followed by these five
+headings, even when a field is `N/A`:
 
 - `Objective`: one concrete, independently acceptable result;
 - `Ownership`: the absolute worktree path, allowed read/write paths, and exclusively owned state;
@@ -72,11 +78,14 @@ ownership away from the main agent.
 
 ### Scheduling and parallelism
 
-At most 5 direct `luna_worker` instances may run concurrently. The main agent queues additional
-eligible units until a slot is free; do not bypass the cap through nested or indirect workers. Parallel
-units must have disjoint write paths, mutable state/resources, and validation ownership. Shared generated
-outputs, fixtures, databases, ports, services, credentials, or validation commands count as overlap;
-serialize the units when disjointness cannot be demonstrated before dispatch.
+At most 8 direct Worker threads may be open concurrently, excluding the main thread. At most 5 may be
+`luna_worker`. When Luna and Terra work are both queued, preserve up to 3 slots for Terra; Terra may use
+additional idle slots when no Luna unit is waiting. The main agent closes or reuses completed threads and
+queues additional units until a slot is free. Do not bypass any cap through nested or indirect workers.
+
+Parallel units must have disjoint write paths, mutable state/resources, and validation ownership. Shared
+generated outputs, fixtures, databases, ports, services, credentials, or validation commands count as
+overlap; serialize the units when disjointness cannot be demonstrated before dispatch.
 
 Use `fork_turns = "none"` by default. Use `fork_turns = "2"` only when the unit genuinely depends on
 the immediately preceding turn and that context cannot be restated cheaply. Never use a full-history fork
@@ -84,21 +93,22 @@ or `fork_turns = "all"`; prompts must remain self-contained and bounded.
 
 ### Scope and exclusions
 
-The main agent owns architecture, product, dependency, migration, and release decisions and all resulting
-changes. It may delegate only side-effect-free evidence collection for those decisions, such as inventory,
-contract tracing, documentation lookup, or compatibility checks; the worker must not choose, approve, or
-execute the decision. Dangerous data operations, security behavior, permission changes, production
-operations, and destructive actions are completely excluded from Luna delegation, even when a unit looks
-small or has a read-only path. Direct edits to shared configuration, cross-module contracts, generated
-artifacts, deployments, or other coupled surfaces remain with the main agent unless a separate bounded
-read-only evidence unit is clearly isolated.
+The main agent owns architecture, product, dependency, migration, and release decisions. A Worker may
+collect side-effect-free evidence for those decisions. Terra may implement a resulting bounded Heavy Lane
+unit only after the main agent fixes its interfaces, allowed paths, exclusions, and verification.
+
+Database queries and mutations, security behavior, permission changes, production operations, uploads,
+releases, destructive actions, and external Git or platform mutations remain with the main agent. A domain
+Skill may delegate a specifically identified read-only preflight, but never the protected operation itself.
+Shared configuration, cross-module contracts, generated artifacts, and mutable shared state require main
+agent ownership unless the domain Skill explicitly isolates a bounded implementation phase.
 
 ### Routing precedence
 
-Apply routing in this order: safety rules and delegation exclusions, an explicit user request, an
-explicitly activated domain Skill or Workflow, then the automatic Luna coverage scan. A domain workflow
-owns its method and decisions. Luna may handle only eligible work units within that workflow and must not
-silently replace an agent or execution path selected by it.
+Apply routing in this order: safety rules and exclusions, an explicit user request, the activated domain
+Skill or Workflow's stage route, then the global Worker-first fallback. A domain Skill owns its method and
+stage-to-Worker mapping; this workflow owns the shared dispatch, scheduling, acceptance, and failure
+protocol. A Worker must not silently replace a route selected by the domain Skill.
 
 ### Review and failure handling
 
@@ -107,25 +117,33 @@ final answer. Treat every worker diff, artifact, and summary as untrusted until 
 scope and validation. Review the actual diff or evidence, confirm that owned paths and interfaces were
 respected, and independently rerun the critical verification before adopting a result.
 
-Classify each terminal Luna work unit during that review:
+Classify each terminal Worker unit during that review:
 
 - `adopted`: the result is used without material correction;
 - `partial`: a substantive part is used after correction or restructuring;
 - `rejected`: a completed result is reviewed but no substantive part is used; or
 - `failed`: the unit is blocked, fails, is interrupted, or produces no reviewable result.
 
-When a completed root turn used Luna, append exactly one final-answer line in this format:
+When a completed root turn used Luna, append exactly one Luna line. When it used Terra, append exactly one
+Terra line. A mixed turn appends both lines:
 
 ```text
 Luna 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
+Terra 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
 ```
 
-Count work units, including additional queued units run by reusing an existing worker thread. The four
-values cover every terminal Luna work unit accepted by the runtime for that root turn. A failed spawn
-that never creates a Luna thread is reported as an operational caveat but is not a Luna work unit. If a
-spawn is unavailable or fails, make one correctly configured attempt only; continue locally when safe
-or stop and report the blocker. Do not retry failed spawns or failed worker validation in an automatic
-loop, and never report an unverified worker result as success.
+Count work units, including queued units run by reusing an existing Worker thread. Each role's four values
+cover every terminal unit accepted for that role. A failed spawn that never creates a thread is an
+operational caveat, not a work unit. If a non-simple completed root turn uses no Worker, append exactly one
+line with the applicable reason:
+
+```text
+Worker 路由：not_delegated reason=excluded|overlap|unavailable|unverifiable
+```
+
+Make one correctly configured spawn attempt only; continue locally when safe or stop and report the
+blocker. Do not retry failed spawns or failed Worker validation in an automatic loop, and never report an
+unverified Worker result as success.
 
 ## Validation Matrix
 
@@ -210,13 +228,12 @@ Use `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doct
 
 Full Doctor output is grouped into `Skills`, `Worktrees`, and `Sessions`. Use repeatable `--section skills`, `--section worktrees`, or `--section sessions` with `--full` to limit scanning and output. Session completion counts are deduplicated across log files by `turn_id`; `raw_completed` and `duplicates_skipped` keep the source volume visible.
 
-Session reports also expose Luna work-unit outcomes from the exact final-answer acceptance line.
-`luna_units_reported` is the sum of adopted, partially adopted, rejected, and failed units;
-`root_turns_with_luna_outcome_report` counts valid root reports. A completed direct-Luna root turn with
-no line increments `root_turns_missing_luna_outcome_report`; malformed, repeated, or orphaned lines
-increment `luna_outcome_reports_invalid`. Historical missing reports remain informational. The legacy
-`successful_root_turns_with_luna` field means that a direct Luna child completed, not that its result was
-adopted.
+Session reports expose symmetric Luna and Terra lifecycle and work-unit outcomes from the exact
+final-answer acceptance lines. Report version 7 also exposes combined Worker concurrency, mixed-role root
+turns, route matches, route mismatches, unknown routes, and valid no-delegation reasons. Historical missing
+outcome lines remain informational; nested Workers, concurrency overruns, route mismatches, and invalid
+route reports produce session warnings. The legacy `successful_root_turns_with_luna` field retains its v6
+meaning: a direct Luna child completed, not that its result was adopted.
 
 Document gardening is an optional section and is not included in the default full scan. Run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full --section docs --repo-root <repo>` only when the documentation-gardening workflow calls for it.
 

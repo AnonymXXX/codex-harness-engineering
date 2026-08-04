@@ -42,7 +42,7 @@ Codex 应重点比较以下方面：
 | Skill 路由 | 根据代码设计、故障诊断、领域建模、TDD 等任务自动选择专业工作流。 |
 | 验证 | 根据修改范围运行最小但可信的测试、lint、构建或 Doctor 检查。 |
 | Git 与平台操作 | 使用可复用流程处理提交、GitHub 操作和发布任务，并保留明确的停止条件。 |
-| 并行执行 | 将边界清晰且可独立验证的工作交给 `luna_worker`，主 Agent 负责复核和集成。 |
+| 并行执行 | 将边界清晰且可独立验证的工作交给 `luna_worker` 或 `terra_worker`，主 Agent 负责复核和集成。 |
 | 知识沉淀 | 只有满足 Capture Gate 的长期规则和决策才进入项目文档，减少文档噪声。 |
 | 恢复与升级 | 通过版本化配置、安装器、备份和健康检查在新机器上恢复工作流。 |
 
@@ -70,7 +70,7 @@ Codex 只能分析当前任务中你明确授权且本机可访问的内容。�
 
 ## 可选方案
 
-- `core`：全局 Harness 规则、工作流、`luna_worker`，以及 Harness Engineering、代码设计、
+- `core`：全局 Harness 规则、工作流、`luna_worker` 与 `terra_worker`，以及 Harness Engineering、代码设计、
   故障诊断、领域建模和 TDD 五个核心 Skill。
 - `daily`：包含 `core`，并增加 Git、GitHub、发布、Web、前端和微信小程序等常用 Skill。
 - 私有 Overlay：可选的外部 Skill 仓库，由用户自行克隆并显式提供本地路径和 Profile。
@@ -98,7 +98,7 @@ python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py check 
 ```
 
 安装器会备份冲突目标，但不会复制或覆盖机器相关的 `~/.codex/config.toml`、凭据、sessions、
-memory 或 cache。安装完成后，新建一个 Codex 任务以加载全局规则、自定义 Agent 和 Skill。
+memory 或 cache。安装完成后，新建一个 Codex 任务以加载全局规则、自定义 Agents 和 Skills。
 
 前置条件、配置选择、更新、回滚和凭据处理详见
 [docs/RECOVERY.md](docs/RECOVERY.md)。

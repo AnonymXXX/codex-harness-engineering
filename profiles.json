@@ -7,6 +7,7 @@
   "global_links": [
     {"source": ".codex/AGENTS.md", "destination": ".codex/AGENTS.md"},
     {"source": ".codex/agents/luna-worker.toml", "destination": ".codex/agents/luna-worker.toml"},
+    {"source": ".codex/agents/terra-worker.toml", "destination": ".codex/agents/terra-worker.toml"},
     {"source": ".codex/RTK.md", "destination": ".codex/RTK.md"},
     {"source": ".codex/docs/workflows", "destination": ".codex/docs/workflows"}
   ],

@@ -46,7 +46,7 @@ Codex should compare at least these areas:
 | Skill routing | Choose focused workflows for code design, diagnosis, domain modeling, TDD, and related work. |
 | Validation | Run the smallest credible test, lint, build, or Doctor checks for the affected surface. |
 | Git and platform operations | Use reusable workflows for commits, GitHub operations, and releases with explicit stop conditions. |
-| Parallel execution | Delegate bounded, independently verifiable work to `luna_worker`, with the main agent reviewing and integrating it. |
+| Parallel execution | Delegate bounded, independently verifiable work to `luna_worker` or `terra_worker`, with the main agent reviewing and integrating it. |
 | Knowledge capture | Add only long-lived rules and decisions that pass the Capture Gate, reducing documentation noise. |
 | Recovery and upgrades | Restore the workflow on a new machine through versioned configuration, an installer, backups, and health checks. |
 
@@ -78,7 +78,7 @@ other devices; Codex should not infer conclusions from missing information.
 
 ## Profiles
 
-- `core`: global Harness rules, workflows, `luna_worker`, and five core skills for Harness
+- `core`: global Harness rules, workflows, `luna_worker` and `terra_worker`, and five core skills for Harness
   Engineering, code design, diagnosis, domain modeling, and TDD.
 - `daily`: includes `core` and adds frequently used skills for Git, GitHub, releases, web access,
   frontend work, and WeChat Mini Programs.
@@ -109,7 +109,7 @@ python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py check 
 
 The installer backs up conflicting targets, but it does not copy or overwrite the machine-specific
 `~/.codex/config.toml`, credentials, sessions, memory, or caches. After installation, start a new
-Codex task to load the global rules, custom agent, and skills.
+Codex task to load the global rules, custom agents, and skills.
 
 See [docs/RECOVERY.md](docs/RECOVERY.md) for prerequisites, profile selection, updates, rollback,
 and credential handling.

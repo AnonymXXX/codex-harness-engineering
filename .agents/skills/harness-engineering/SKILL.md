@@ -30,17 +30,18 @@ For Fast Lane work:
 
 Use the Standard Lane for cohesive local features and fixes that exceed the Fast Lane but do not touch high-risk surfaces. Use the Heavy Lane for medium or large changes, shared behavior, configuration, generated artifacts, releases, production operations, data, security, permissions, or unclear blast radius. File count is only a signal; risk and coupling decide the lane.
 
-## Luna Coverage Gate
+## Worker-first Coverage Gate
 
-- After risk classification, proactively scan every non-simple engineering task for independent Luna work units.
-- Dispatch through at most 5 direct `luna_worker` instances; workers are leaves and must not spawn, delegate, coordinate, or nest subagents.
+- After risk classification, route every non-simple engineering task through independent Worker work units by default.
+- Prefer `luna_worker` for bounded routine work and `terra_worker` for bounded Heavy Lane implementation. Common domain Skills own their stage-specific routes.
+- Use at most 8 direct Worker threads, including at most 5 Luna threads. Workers are leaves and must not spawn, delegate, coordinate, or nest subagents.
 - Structured dispatch, response and acceptance reporting, routing precedence, thresholds, eligible unit types, queueing, fork bounds, exclusions, parallel disjointness, and main-agent review/failure handling are defined in the [Harness workflow](../../../.codex/docs/workflows/harness-engineering.md).
 
 ## Natural Mode
 
 - Do not ask the user to invoke `$harness-engineering` or another workflow skill for an ordinary request.
 - For Fast Lane tasks, proceed directly in the current worktree and do not add ceremony beyond the narrow validation described above.
-- Apply the Luna Coverage Gate and its detailed rules in `~/.codex/docs/workflows/harness-engineering.md`; keep risk classification, coordination, integration, review, and final reporting with the main agent.
+- Apply the Worker-first Coverage Gate and its detailed rules in `~/.codex/docs/workflows/harness-engineering.md`; keep risk classification, coordination, integration, review, and final reporting with the main agent.
 - For clear medium-risk tasks, autonomously create a task worktree when the repo state and integration branch are safe and unambiguous, then run the worktree bootstrap from `~/.codex/docs/workflows/git-worktree.md` before editing.
 - Treat validated commits, eligible merges, and cleanup of fully merged task worktrees and local task branches as normal autonomous completion steps. Do not wait merely because the user did not mention Git; stop only when the documented safety conditions require it.
 - Record the target branch commit before creating a task worktree. Before remote integration, run the documented `integration_preflight.py` check with that task base against the latest remote target. Complete an authorized direct fast-forward autonomously; pause on `MR_REQUIRED` unless the user separately authorized the MR flow.

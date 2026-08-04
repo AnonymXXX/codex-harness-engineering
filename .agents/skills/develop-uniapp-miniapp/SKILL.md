@@ -9,6 +9,13 @@ Use this skill to deliver uni-app mini-program frontend work, from narrow fixes 
 
 Do not use this skill for a native WeChat mini-program repo unless the task is explicitly to migrate that repo to uni-app.
 
+## Worker Routing
+
+Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's capability modes.
+
+- Prefer `luna_worker` with `Route: develop-uniapp-miniapp/small-change` for small isolated changes and focused validation with disjoint ownership.
+- Route bounded Heavy Lane implementation of complex feature slices or frontend foundations to `terra_worker` with `Route: develop-uniapp-miniapp/complex-implementation`; keep mode selection, architecture, UX decisions, integration, and final validation with the main agent.
+
 ## Workflow
 
 1. Confirm the repo is a uni-app mini-program project, or that the user explicitly asked to create or migrate one.

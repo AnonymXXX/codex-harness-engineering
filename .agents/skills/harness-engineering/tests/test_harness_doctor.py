@@ -71,6 +71,40 @@ class SkillIndexTests(unittest.TestCase):
             if item["code"] == "harness-skill-invocation-policy-mismatch"
         ]
 
+    def test_worker_routes_are_discovered_from_installed_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            skills_root = Path(tmp)
+            skill = skills_root / "sample-route"
+            skill.mkdir()
+            (skill / "SKILL.md").write_text(
+                "---\nname: sample-route\ndescription: sample\n---\n\n"
+                "- Use `luna_worker` with `Route: sample-route/evidence`.\n"
+                "- Use `terra_worker` with `Route: sample-route/implementation`.\n",
+                encoding="utf-8",
+            )
+
+            routes, checks = doctor.discover_worker_routes(skills_root)
+
+        self.assertEqual("luna", routes["sample-route/evidence"])
+        self.assertEqual("terra", routes["sample-route/implementation"])
+        self.assertEqual("worker-routes-discovered", checks[0]["code"])
+
+    def test_worker_route_discovery_does_not_infer_role_from_route_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            skills_root = Path(tmp)
+            skill = skills_root / "invalid-route"
+            skill.mkdir()
+            (skill / "SKILL.md").write_text(
+                "---\nname: invalid-route\ndescription: sample\n---\n\n"
+                "- Use `Route: sample-route/luna` for this phase.\n",
+                encoding="utf-8",
+            )
+
+            routes, checks = doctor.discover_worker_routes(skills_root)
+
+        self.assertNotIn("sample-route/luna", routes)
+        self.assertEqual("worker-route-declaration-invalid", checks[0]["code"])
+
     def test_requires_exact_core_five_skills(self) -> None:
         self.assertEqual(
             {
@@ -571,13 +605,21 @@ class SessionAuditTests(unittest.TestCase):
     def event(self, value: datetime, event_type: str, payload: dict) -> dict:
         return {"timestamp": self.stamp(value), "type": event_type, "payload": payload}
 
-    def metadata(self, value: datetime, session_id: str, *, parent: str | None = None, depth: int = 0) -> dict:
+    def metadata(
+        self,
+        value: datetime,
+        session_id: str,
+        *,
+        parent: str | None = None,
+        depth: int = 0,
+        role: str = "luna_worker",
+    ) -> dict:
         source = {}
         if parent:
             source = {
                 "subagent": {
                     "thread_spawn": {
-                        "agent_role": "luna_worker",
+                        "agent_role": role,
                         "parent_thread_id": parent,
                         "depth": depth,
                     }
@@ -1302,23 +1344,372 @@ class SessionAuditTests(unittest.TestCase):
         self.assertEqual(0, audit["root_turns_with_luna_outcome_report"])
         self.assertEqual(1, audit["luna_outcome_reports_invalid"])
 
-    def test_luna_config_limit_states(self) -> None:
+    def test_mixed_luna_terra_lifecycle_outcomes_routes_and_peak(self) -> None:
+        root_id, luna_id, terra_id = "mixed-root", "mixed-luna", "mixed-terra"
+        root_rows = [self.metadata(self.now, root_id)]
+        for call_id, agent_type, route, child_id in (
+            ("call-luna", "luna_worker", "tdd/tests", luna_id),
+            ("call-terra", "terra_worker", "tdd/implementation", terra_id),
+        ):
+            root_rows.extend(
+                [
+                    {
+                        "timestamp": self.stamp(self.now),
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "spawn_agent",
+                            "call_id": call_id,
+                            "arguments": json.dumps(
+                                {
+                                    "agent_type": agent_type,
+                                    "message": f"Route: {route}\nObjective: verify",
+                                }
+                            ),
+                            "turn_id": "mixed-turn",
+                        },
+                    },
+                    self.event(
+                        self.now,
+                        "event_msg",
+                        {
+                            "type": "sub_agent_activity",
+                            "event_id": call_id,
+                            "agent_thread_id": child_id,
+                            "kind": "started",
+                            "turn_id": "mixed-turn",
+                        },
+                    ),
+                ]
+            )
+        root_rows.extend(
+            [
+                self.event(
+                    self.now + timedelta(seconds=2),
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "agent_thread_id": luna_id,
+                        "kind": "completed",
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=2),
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "agent_thread_id": terra_id,
+                        "kind": "completed",
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=3),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": "mixed-turn",
+                        "last_agent_message": (
+                            "Luna 验收：adopted=1 partial=0 rejected=0 failed=0\n"
+                            "Terra 验收：adopted=0 partial=1 rejected=0 failed=0"
+                        ),
+                    },
+                ),
+            ]
+        )
+        self.write(self.root / "root.jsonl", root_rows)
+        self.write(
+            self.root / "luna.jsonl",
+            [
+                self.metadata(self.now, luna_id, parent=root_id, depth=1),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "luna-turn"},
+                ),
+            ],
+        )
+        self.write(
+            self.root / "terra.jsonl",
+            [
+                self.metadata(
+                    self.now, terra_id, parent=root_id, depth=1, role="terra_worker"
+                ),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "terra-turn"},
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["luna_started"])
+        self.assertEqual(1, audit["terra_started"])
+        self.assertEqual(2, audit["worker_started"])
+        self.assertEqual(2, audit["worker_completed"])
+        self.assertEqual(2, audit["worker_peak_concurrency"])
+        self.assertEqual(1, audit["mixed_worker_root_turns"])
+        self.assertEqual(1, audit["luna_units_adopted"])
+        self.assertEqual(1, audit["terra_units_partially_adopted"])
+        self.assertEqual(2, audit["route_units_reported"])
+        self.assertEqual(2, audit["route_units_matched"])
+        self.assertEqual(0, audit["route_units_mismatched"])
+        self.assertEqual(0, audit["route_units_unknown"])
+
+    def test_worker_route_mismatch_and_non_delegated_report(self) -> None:
+        mismatch_root, terra_id = "mismatch-root", "mismatch-terra"
+        self.write(
+            self.root / "mismatch-root.jsonl",
+            [
+                self.metadata(self.now, mismatch_root),
+                {
+                    "timestamp": self.stamp(self.now),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "spawn_agent",
+                        "call_id": "mismatch-call",
+                        "arguments": json.dumps(
+                            {
+                                "agent_type": "terra_worker",
+                                "message": "Route: tdd/tests\nObjective: mismatch",
+                            }
+                        ),
+                        "turn_id": "mismatch-turn",
+                    },
+                },
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": "mismatch-call",
+                        "agent_thread_id": terra_id,
+                        "kind": "started",
+                        "turn_id": "mismatch-turn",
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=2),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": "mismatch-turn",
+                        "last_agent_message": (
+                            "Worker 路由：not_delegated reason=excluded\n"
+                            "Terra 验收：adopted=1 partial=0 rejected=0 failed=0"
+                        ),
+                    },
+                ),
+            ],
+        )
+        self.write(
+            self.root / "mismatch-terra.jsonl",
+            [
+                self.metadata(
+                    self.now, terra_id, parent=mismatch_root, depth=1, role="terra_worker"
+                )
+            ],
+        )
+        self.write(
+            self.root / "direct-root.jsonl",
+            [
+                self.metadata(self.now, "direct-root"),
+                self.event(
+                    self.now + timedelta(seconds=3),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": "direct-turn",
+                        "last_agent_message": (
+                            "Worker 路由：not_delegated reason=overlap"
+                        ),
+                    },
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["route_units_reported"])
+        self.assertEqual(1, audit["route_units_mismatched"])
+        self.assertEqual(1, audit["root_turns_without_worker_reason_report"])
+        self.assertEqual(1, audit["worker_route_reports_invalid"])
+
+    def test_mixed_worker_peak_reaches_eight_without_exceeding_luna_cap(self) -> None:
+        root_id = "peak-eight-root"
+        rows = [self.metadata(self.now, root_id)]
+        for index in range(8):
+            role = "luna_worker" if index < 5 else "terra_worker"
+            route = "tdd/tests" if index < 5 else "tdd/implementation"
+            call_id = f"peak-call-{index}"
+            rows.extend(
+                [
+                    {
+                        "timestamp": self.stamp(self.now),
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "spawn_agent",
+                            "call_id": call_id,
+                            "arguments": json.dumps(
+                                {
+                                    "agent_type": role,
+                                    "message": f"Route: {route}\nObjective: unit {index}",
+                                }
+                            ),
+                            "turn_id": "peak-turn",
+                        },
+                    },
+                    self.event(
+                        self.now,
+                        "event_msg",
+                        {
+                            "type": "sub_agent_activity",
+                            "event_id": call_id,
+                            "agent_thread_id": f"peak-child-{index}",
+                            "kind": "started",
+                            "turn_id": "peak-turn",
+                        },
+                    ),
+                ]
+            )
+        rows.append(
+            self.event(
+                self.now + timedelta(seconds=1),
+                "event_msg",
+                {"type": "task_complete", "turn_id": "peak-turn"},
+            )
+        )
+        self.write(self.root / "peak-root.jsonl", rows)
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(5, audit["luna_peak_concurrency"])
+        self.assertEqual(3, audit["terra_peak_concurrency"])
+        self.assertEqual(8, audit["worker_peak_concurrency"])
+        self.assertEqual(8, audit["route_units_matched"])
+
+    def test_nested_terra_is_counted_as_worker_nested(self) -> None:
+        root_id, luna_id, terra_id = "nested-root", "parent-luna", "nested-terra"
+        self.write(
+            self.root / "root.jsonl",
+            [
+                self.metadata(self.now, root_id),
+                self.event(
+                    self.now + timedelta(seconds=3),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "root-turn"},
+                ),
+            ],
+        )
+        self.write(
+            self.root / "luna.jsonl",
+            [self.metadata(self.now, luna_id, parent=root_id, depth=1)],
+        )
+        self.write(
+            self.root / "terra.jsonl",
+            [
+                self.metadata(
+                    self.now, terra_id, parent=luna_id, depth=2, role="terra_worker"
+                ),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "terra-turn"},
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["terra_nested"])
+        self.assertEqual(1, audit["worker_nested"])
+        self.assertEqual(1, audit["mixed_worker_root_turns"])
+        self.assertEqual(0, audit["successful_root_turns_with_worker"])
+
+    def test_worker_config_limit_states(self) -> None:
         config = self.root / "config.toml"
 
-        config.write_text("[agents]\nmax_concurrent_threads_per_session = 5\n", encoding="utf-8")
-        self.assertEqual("ok", doctor.check_luna_config(config)[0]["severity"])
+        config.write_text(
+            "[agents]\nenabled = true\nmax_concurrent_threads_per_session = 8\n",
+            encoding="utf-8",
+        )
+        self.assertEqual("ok", doctor.check_worker_config(config)[0]["severity"])
 
         config.write_text("[agents]\n", encoding="utf-8")
-        self.assertEqual("warning", doctor.check_luna_config(config)[0]["severity"])
+        self.assertEqual("warning", doctor.check_worker_config(config)[0]["severity"])
 
-        config.write_text("[agents]\nmax_concurrent_threads_per_session = 3\n", encoding="utf-8")
-        self.assertEqual("warning", doctor.check_luna_config(config)[0]["severity"])
+        config.write_text(
+            "[agents]\nenabled = false\nmax_concurrent_threads_per_session = 8\n",
+            encoding="utf-8",
+        )
+        self.assertEqual("warning", doctor.check_worker_config(config)[0]["severity"])
 
-        config.write_text("[agents\nmax_concurrent_threads_per_session = 5\n", encoding="utf-8")
-        self.assertEqual("error", doctor.check_luna_config(config)[0]["severity"])
+        config.write_text(
+            "[agents\nenabled = true\nmax_concurrent_threads_per_session = 8\n",
+            encoding="utf-8",
+        )
+        self.assertEqual("error", doctor.check_worker_config(config)[0]["severity"])
 
         config.unlink()
+        self.assertEqual("warning", doctor.check_worker_config(config)[0]["severity"])
+
+    def test_report_v6_luna_config_helper_keeps_limit_five_semantics(self) -> None:
+        config = self.root / "config.toml"
+        config.write_text(
+            "[agents]\nmax_concurrent_threads_per_session = 5\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual("ok", doctor.check_luna_config(config)[0]["severity"])
+
+        config.write_text(
+            "[agents]\nenabled = true\nmax_concurrent_threads_per_session = 8\n",
+            encoding="utf-8",
+        )
         self.assertEqual("warning", doctor.check_luna_config(config)[0]["severity"])
+
+    def test_worker_session_policy_reports_limits_nesting_and_routes(self) -> None:
+        audit = doctor._audit_default(7)
+        audit.update(
+            {
+                "worker_peak_concurrency": 9,
+                "luna_peak_concurrency": 6,
+                "worker_nested": 1,
+                "route_units_reported": 3,
+                "route_units_matched": 0,
+                "route_units_mismatched": 2,
+                "route_units_unknown": 1,
+                "worker_route_reports_invalid": 1,
+            }
+        )
+
+        checks = doctor.check_worker_session_policy(audit)
+
+        self.assertEqual(
+            {
+                "worker-concurrency-over-limit",
+                "luna-concurrency-over-limit",
+                "nested-worker-detected",
+                "worker-route-mismatch",
+                "worker-route-unknown",
+                "worker-route-report-invalid",
+            },
+            {item["code"] for item in checks},
+        )
+        self.assertTrue(all(item["severity"] == "warning" for item in checks))
+
+        clean = doctor.check_worker_session_policy(doctor._audit_default(7))
+        self.assertEqual("worker-session-policy-ok", clean[0]["code"])
+
+        legacy = doctor._audit_default(7)
+        legacy["route_units_unknown"] = 4
+        self.assertEqual(
+            "worker-route-unknown",
+            doctor.check_worker_session_policy(legacy)[0]["code"],
+        )
 
 
 class ReportTests(unittest.TestCase):
@@ -1346,7 +1737,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("worktrees", payload["section_summaries"])
         self.assertIn("sessions", payload["section_summaries"])
         self.assertNotIn("docs", payload["section_summaries"])
-        self.assertEqual(6, payload["version"])
+        self.assertEqual(7, payload["version"])
         self.assertEqual(0, doctor.report_exit_code(report, strict=False))
         self.assertEqual(1, doctor.report_exit_code(report, strict=True))
 
@@ -1395,7 +1786,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("[Sessions]", rendered)
         self.assertIn("duplicates_skipped=1", rendered)
 
-    def test_sessions_render_all_luna_metrics_in_human_and_json(self) -> None:
+    def test_sessions_render_all_worker_metrics_in_human_and_json(self) -> None:
         session_audit = doctor._audit_default(7)
         session_audit.update(
             {
@@ -1421,9 +1812,9 @@ class ReportTests(unittest.TestCase):
 
         for field, value in session_audit.items():
             self.assertEqual(value, payload["session_audit"][field])
-            if field.startswith("luna_") or field.startswith("root_"):
+            if field.startswith(("luna_", "terra_", "worker_", "route_", "root_")):
                 self.assertIn(f"{field}={value}", rendered)
-        self.assertEqual(6, payload["version"])
+        self.assertEqual(7, payload["version"])
 
     def test_docs_section_is_explicit_and_rendered(self) -> None:
         parser = doctor.build_parser()

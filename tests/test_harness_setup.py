@@ -28,6 +28,23 @@ Set Status to completed, blocked, or failed.
 model = "gpt-5.6-luna"
 model_reasoning_effort = "max"
 '''
+EXPECTED_TERRA_CONFIG = '''name = "terra_worker"
+description = "Complex worker for bounded Heavy Lane implementation tasks."
+developer_instructions = """
+Handle the assigned bounded Heavy Lane implementation strictly within its stated scope.
+Work independently and use appropriate tools when needed.
+Verify the result when practical.
+Do not make unrelated changes.
+Do not spawn, delegate to, or coordinate subagents. Complete the assigned scope yourself.
+Do not make architecture, product, dependency, migration, or release decisions; use the interfaces and decisions fixed by the main agent.
+Expect the task prompt to define Objective, Ownership, Interfaces, Constraints, and Verification.
+If scope or ownership remains ambiguous, return blocked instead of expanding the task.
+Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
+Set Status to completed, blocked, or failed.
+"""
+model = "gpt-5.6-terra"
+model_reasoning_effort = "max"
+'''
 
 
 class HarnessSetupCliTests(unittest.TestCase):
@@ -91,6 +108,70 @@ class HarnessSetupCliTests(unittest.TestCase):
     def test_public_manifest_has_no_private_overlay_catalog(self) -> None:
         self.assertNotIn("overlay", ROOT_MANIFEST)
 
+    def test_global_agent_links_include_luna_and_terra(self) -> None:
+        self.assertEqual(
+            [
+                {
+                    "source": ".codex/agents/luna-worker.toml",
+                    "destination": ".codex/agents/luna-worker.toml",
+                },
+                {
+                    "source": ".codex/agents/terra-worker.toml",
+                    "destination": ".codex/agents/terra-worker.toml",
+                },
+            ],
+            [
+                entry
+                for entry in ROOT_MANIFEST["global_links"]
+                if entry["destination"].startswith(".codex/agents/")
+            ],
+        )
+
+    def test_terra_agent_config_matches_tracked_toml(self) -> None:
+        config = ROOT / ".codex" / "agents" / "terra-worker.toml"
+
+        self.assertEqual(EXPECTED_TERRA_CONFIG, config.read_text(encoding="utf-8"))
+
+    def test_core_worker_routes_are_declared_and_doctor_auditable(self) -> None:
+        routes = {
+            "diagnosing-bugs": {
+                "diagnosing-bugs/evidence": "luna",
+                "diagnosing-bugs/fix": "terra",
+            },
+            "tdd": {"tdd/tests": "luna", "tdd/implementation": "terra"},
+            "codebase-design": {
+                "codebase-design/evidence": "luna",
+                "codebase-design/implementation": "terra",
+            },
+            "develop-uniapp-miniapp": {
+                "develop-uniapp-miniapp/small-change": "luna",
+                "develop-uniapp-miniapp/complex-implementation": "terra",
+            },
+            "web-access": {"web-access/research": "luna"},
+            "git-auto-commit": {"git-auto-commit/inspect": "luna"},
+            "github-cli-ops": {"github-cli-ops/inventory": "luna"},
+            "release-ops": {"release-ops/inspect": "luna"},
+            "wechat-miniprogram-ci-upload": {
+                "wechat-miniprogram-ci-upload/preflight": "luna"
+            },
+        }
+        doctor_source = (
+            ROOT
+            / ".agents"
+            / "skills"
+            / "harness-engineering"
+            / "scripts"
+            / "harness_doctor.py"
+        ).read_text(encoding="utf-8")
+
+        for skill_name, expected in routes.items():
+            skill_text = (
+                ROOT / ".agents" / "skills" / skill_name / "SKILL.md"
+            ).read_text(encoding="utf-8")
+            for route, role in expected.items():
+                self.assertIn(f"Route: {route}", skill_text)
+                self.assertIn(f'"{route}": "{role}"', doctor_source)
+
     def test_public_tree_has_no_internal_project_identifiers(self) -> None:
         forbidden = (
             "dy" + "cx",
@@ -127,9 +208,10 @@ class HarnessSetupCliTests(unittest.TestCase):
             recovery,
         )
         self.assertIn(
-            "[agents]\nenabled = true\nmax_concurrent_threads_per_session = 5",
+            "[agents]\nenabled = true\nmax_concurrent_threads_per_session = 8",
             recovery,
         )
+        self.assertIn("total spawned-thread limit is `8`", recovery)
         self.assertIn(
             "must not create, copy, link, or automatically overwrite this file",
             recovery,
@@ -137,12 +219,14 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("Codex reads the", recovery)
         self.assertIn("setting only when a new task starts", recovery)
 
-    def test_recovery_doc_documents_luna_acceptance_contract(self) -> None:
+    def test_recovery_doc_documents_worker_acceptance_contract(self) -> None:
         recovery = RECOVERY_DOC.read_text(encoding="utf-8")
 
         self.assertIn("five-field task contract", recovery)
         self.assertIn("structured response contract", recovery)
-        self.assertIn("machine-readable Luna", recovery)
+        self.assertIn("dispatch Luna and Terra", recovery)
+        self.assertIn("one machine-readable", recovery)
+        self.assertIn("Luna and Terra dispatches", recovery)
 
     def test_install_leaves_machine_specific_codex_config_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -275,6 +359,13 @@ class HarnessSetupCliTests(unittest.TestCase):
                 luna.resolve(),
             )
             self.assertEqual(EXPECTED_LUNA_CONFIG, luna.read_text(encoding="utf-8"))
+            terra = home / ".codex" / "agents" / "terra-worker.toml"
+            self.assertTrue(terra.is_symlink())
+            self.assertEqual(
+                (ROOT / ".codex" / "agents" / "terra-worker.toml").resolve(),
+                terra.resolve(),
+            )
+            self.assertEqual(EXPECTED_TERRA_CONFIG, terra.read_text(encoding="utf-8"))
             self.assertTrue((home / ".agents" / "skills" / "harness-engineering").is_symlink())
             self.assertTrue((home / ".agents" / "skills" / "web-access").is_symlink())
             self.assertIn("validation: index=skipped(custom-home)", first.stdout)
@@ -283,6 +374,20 @@ class HarnessSetupCliTests(unittest.TestCase):
             second = self.run_setup(home, "install", "--profile", "daily")
             self.assertEqual(second.returncode, 0, second.stderr or second.stdout)
             self.assertIn("unchanged", second.stdout)
+            self.assertIn(f"unchanged: {terra.parent.resolve() / terra.name}", second.stdout)
+
+    def test_check_reports_missing_terra_agent_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            installed = self.run_setup(home, "install", "--profile", "core")
+            self.assertEqual(installed.returncode, 0, installed.stderr or installed.stdout)
+
+            terra = home / ".codex" / "agents" / "terra-worker.toml"
+            terra.unlink()
+            result = self.run_setup(home, "check", "--profile", "core")
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(f"link: missing {terra.resolve()}", result.stderr)
 
     def test_real_home_install_runs_index_and_doctor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -594,6 +699,24 @@ class HarnessSetupCliTests(unittest.TestCase):
             checked = self.run_setup(home, "check", "--profile", "core")
             self.assertEqual(checked.returncode, 0, checked.stderr or checked.stdout)
             self.assertIn("check: ok", checked.stdout)
+
+    def test_conflicting_terra_agent_is_backed_up_before_linking(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            terra = home / ".codex" / "agents" / "terra-worker.toml"
+            terra.parent.mkdir(parents=True)
+            terra.write_text("user-owned\n", encoding="utf-8")
+
+            result = self.run_setup(home, "install", "--profile", "core")
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertTrue(terra.is_symlink())
+            self.assertEqual(EXPECTED_TERRA_CONFIG, terra.read_text(encoding="utf-8"))
+            backups = self.find_backup_entries(
+                home, Path(".codex/agents/terra-worker.toml")
+            )
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].read_text(encoding="utf-8"), "user-owned\n")
 
     def test_credentials_set_uses_keychain_prompt_without_password_argument(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

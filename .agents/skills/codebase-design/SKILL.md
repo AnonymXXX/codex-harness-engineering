@@ -7,6 +7,13 @@ description: Design deep modules, clean interfaces, adapters, and test seams. Us
 
 Use a small shared vocabulary to design code that is easier for humans and Codex to change.
 
+## Worker Routing
+
+Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
+
+- Prefer `luna_worker` with `Route: codebase-design/evidence` for independent module, interface, reference, and seam evidence gathering; return findings for the main agent's design decision.
+- Only after the main agent freezes the design and public seam, route bounded implementation-only work to `terra_worker` with `Route: codebase-design/implementation`; keep architecture, trade-offs, coordination, integration, and final validation with the main agent.
+
 ## Vocabulary
 
 - **Module**: anything with an interface and implementation, from a function to a package.
