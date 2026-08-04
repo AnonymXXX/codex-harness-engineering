@@ -83,7 +83,7 @@ This is a release/CI workflow. Do not mix it into app feature development rules.
    - For build upload, use the synchronized version from step 3.
    - For dev upload, use read-only version resolution: user-provided version, then `src/manifest.json` or `manifest.json` `versionName`, then `package.json` version. Do not edit files for dev upload.
    - For preview, use the same read-only version resolution as dev upload.
-   - If the user only asks to generate a preview QR code and the purpose is unclear, use `release v<版本号> 验证小程序当前构建效果`.
+   - If the user only asks to generate a preview QR code and the purpose is unclear, use `验证小程序当前构建效果` as `<变更目的>`, then apply the Upload Description Policy environment suffix.
    - Default robot is `1` only when using `miniprogram-ci`; DevTools CLI does not use robot.
 8. Prefer WeChat DevTools CLI for upload/preview.
    - Resolve CLI path (see WeChat DevTools CLI section).
@@ -108,7 +108,7 @@ This is a release/CI workflow. Do not mix it into app feature development rules.
     - For `miniprogram-ci`: remove empty `.tmp/miniprogram-ci-work/[0-9a-f]{32}` directories automatically; leave non-empty ones and report the path.
 11. After build upload succeeds, commit and tag the synchronized version files.
     - Stage only upload-managed version files that changed.
-    - Commit with exactly `chore: release v<version>`.
+    - Commit with exactly `chore: release v<version>`; this Git commit message is not an upload description and does not receive the environment suffix.
     - Create a lightweight tag named `v<version>`.
     - Push the current branch and tag with `git push origin <current-branch> v<version>`.
     - If commit, tag, or push fails, report the exact failure and do not hide that the upload itself already succeeded.
@@ -117,26 +117,33 @@ This is a release/CI workflow. Do not mix it into app feature development rules.
 
 ## Upload Description Policy
 
-Use a formal, meaningful project remark:
+Preserve the base remark format and append exactly one full-width environment suffix:
 
 ```text
-release v<版本号> <变更目的>
+release v<版本号> <变更目的>（UAT）
+release v<版本号> <变更目的>（RELEASE）
 ```
 
 Examples:
 
 ```text
-release v1.0.0 验证账单解析与预算统计流程
-release v1.0.0 更新小程序开发版本
+release v1.0.0 验证账单解析与预算统计流程（UAT）
+release v1.0.0 更新小程序开发版本（RELEASE）
 ```
 
 Rules:
 
+- Resolve the environment before creating any upload description. Honor the environment explicitly named by the user first.
+- If the user does not name an environment, inspect the current branch or an explicitly named target branch by branch name: `uat` -> `（UAT）`; `release` -> `（RELEASE）`.
+- If no branch mapping is clear, stop and ask the user which environment to use. Never guess.
+- Append exactly one suffix at the end. Never omit it, use half-width parentheses, or append both `（UAT）` and `（RELEASE）`.
+- In command templates, replace `<环境后缀>` with the resolved literal `（UAT）` or `（RELEASE）`; never upload the placeholder unchanged.
 - Infer `<变更目的>` from the user's request, recent task context, README, page names, or recent commit subjects when it is clear.
 - If the purpose is unclear, use:
 
 ```text
-release v<版本号> 更新小程序开发版本
+release v<版本号> 更新小程序开发版本（UAT）
+release v<版本号> 更新小程序开发版本（RELEASE）
 ```
 
 - Do not include commit hashes in the upload description by default; report them separately if useful.
@@ -237,7 +244,7 @@ Upload a development version:
 /Applications/wechatwebdevtools.app/Contents/MacOS/cli upload \
   --project <absolute-mp-weixin-output-dir> \
   --version <version> \
-  --desc "release v<版本号> <变更目的>" \
+  --desc "release v<版本号> <变更目的><环境后缀>" \
   --lang zh
 ```
 
@@ -283,7 +290,7 @@ cd <repo>/.tmp/miniprogram-ci-work && pnpm dlx miniprogram-ci upload \
   --project-path <absolute-mp-weixin-output-dir> \
   --private-key-path <private-key-path> \
   --upload-version <version> \
-  --upload-description "release v<版本号> <变更目的>" \
+  --upload-description "release v<版本号> <变更目的><环境后缀>" \
   --robot <robot> \
   --use-project-config \
   --locales zh
@@ -297,7 +304,7 @@ cd <repo>/.tmp/miniprogram-ci-work && pnpm dlx miniprogram-ci preview \
   --project-path <absolute-mp-weixin-output-dir> \
   --private-key-path <absolute-private-key-path> \
   --upload-version <version> \
-  --upload-description "release v<版本号> <变更目的>" \
+  --upload-description "release v<版本号> <变更目的><环境后缀>" \
   --robot <robot> \
   --use-project-config \
   --enable-qrcode \
@@ -309,7 +316,8 @@ cd <repo>/.tmp/miniprogram-ci-work && pnpm dlx miniprogram-ci preview \
 For a plain `生成预览二维码` request, use this default description unless task context provides a clearer purpose:
 
 ```text
-release v<版本号> 验证小程序当前构建效果
+release v<版本号> 验证小程序当前构建效果（UAT）
+release v<版本号> 验证小程序当前构建效果（RELEASE）
 ```
 
 ## Safety Notes
