@@ -27,7 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.9
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         tomllib = None  # type: ignore[assignment]
 
-REPORT_VERSION = 7
+REPORT_VERSION = 8
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FRONTMATTER_PATTERN = re.compile(r"^---\n(.*?)\n---(?:\n|$)", re.DOTALL)
 ROLLOUT_ID_PATTERN = re.compile(
@@ -60,6 +60,22 @@ WORKER_NOT_DELEGATED_PATTERN = re.compile(
     r"^Worker 路由：not_delegated reason="
     r"(?P<reason>excluded|overlap|unavailable|unverifiable)$"
 )
+WORKER_INTERRUPTION_PREFIX = "Worker 中断："
+WORKER_INTERRUPTION_PATTERN = re.compile(
+    r"^Worker 中断：overlap=(?P<overlap>0|[1-9]\d*) "
+    r"unsafe=(?P<unsafe>0|[1-9]\d*) "
+    r"scope_violation=(?P<scope_violation>0|[1-9]\d*) "
+    r"user_redirect=(?P<user_redirect>0|[1-9]\d*) "
+    r"unresponsive=(?P<unresponsive>0|[1-9]\d*)$"
+)
+WORKER_INTERRUPTION_REASONS = (
+    "overlap",
+    "unsafe",
+    "scope_violation",
+    "user_redirect",
+    "unresponsive",
+)
+WORKER_CORRECTION_MARKER = "Correction: 1/1"
 WORKER_ROLE_ALIASES = {
     "luna_worker": "luna",
     "luna": "luna",
@@ -1413,6 +1429,9 @@ def _audit_default(days: int) -> dict[str, Any]:
         "root_turns_with_luna_outcome_report": 0,
         "root_turns_missing_luna_outcome_report": 0,
         "luna_outcome_reports_invalid": 0,
+        "luna_turns_started": 0,
+        "luna_turns_completed": 0,
+        "luna_turns_interrupted": 0,
         "terra_started": 0,
         "terra_completed": 0,
         "terra_interrupted": 0,
@@ -1428,6 +1447,9 @@ def _audit_default(days: int) -> dict[str, Any]:
         "root_turns_with_terra_outcome_report": 0,
         "root_turns_missing_terra_outcome_report": 0,
         "terra_outcome_reports_invalid": 0,
+        "terra_turns_started": 0,
+        "terra_turns_completed": 0,
+        "terra_turns_interrupted": 0,
         "worker_started": 0,
         "worker_completed": 0,
         "worker_interrupted": 0,
@@ -1442,6 +1464,22 @@ def _audit_default(days: int) -> dict[str, Any]:
         "route_units_unknown": 0,
         "root_turns_without_worker_reason_report": 0,
         "worker_route_reports_invalid": 0,
+        "worker_turns_started": 0,
+        "worker_turns_completed": 0,
+        "worker_turns_interrupted": 0,
+        "worker_correction_turns_started": 0,
+        "worker_correction_turns_completed": 0,
+        "worker_correction_turns_failed": 0,
+        "worker_threads_reused": 0,
+        "worker_reuse_policy_violations": 0,
+        "worker_interrupts_reported": 0,
+        "worker_interrupts_missing_reason": 0,
+        "worker_interrupt_reports_invalid": 0,
+        "worker_interrupts_overlap": 0,
+        "worker_interrupts_unsafe": 0,
+        "worker_interrupts_scope_violation": 0,
+        "worker_interrupts_user_redirect": 0,
+        "worker_interrupts_unresponsive": 0,
     }
 
 
@@ -1469,7 +1507,9 @@ def _audit_event_time(event: dict[str, Any], fallback: datetime) -> datetime:
     payload = event.get("payload")
     payload = payload if isinstance(payload, dict) else {}
     payload_type = payload.get("type")
-    if payload_type == "task_complete":
+    if payload_type == "task_started":
+        keys = ("started_at", "timestamp")
+    elif payload_type == "task_complete":
         keys = ("completed_at", "timestamp")
     elif payload_type == "turn_aborted":
         keys = ("completed_at", "aborted_at", "ended_at", "timestamp")
@@ -1569,6 +1609,29 @@ def _audit_spawn_call(event: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _audit_followup_call(event: dict[str, Any]) -> dict[str, Any] | None:
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("type") != "function_call" or payload.get("name") != "followup_task":
+        return None
+    call_id = payload.get("call_id") or payload.get("id") or event.get("call_id")
+    if not isinstance(call_id, str) or not call_id.strip():
+        return None
+    arguments = payload.get("arguments")
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except (TypeError, json.JSONDecodeError):
+            arguments = {}
+    arguments = arguments if isinstance(arguments, dict) else {}
+    message = arguments.get("message")
+    return {
+        "call_id": call_id.strip(),
+        "is_correction": isinstance(message, str) and WORKER_CORRECTION_MARKER in message,
+    }
+
+
 def _audit_task_name_route(
     task_name: str | None,
     route_expectations: dict[str, str],
@@ -1615,7 +1678,13 @@ def _audit_event_kind(event: dict[str, Any]) -> str | None:
     if not isinstance(payload, dict):
         return None
     value = payload.get("type")
-    if value in {"session_meta", "task_complete", "turn_aborted", "sub_agent_activity"}:
+    if value in {
+        "session_meta",
+        "task_started",
+        "task_complete",
+        "turn_aborted",
+        "sub_agent_activity",
+    }:
         return value
     if event.get("type") == "session_meta":
         return "session_meta"
@@ -1711,6 +1780,27 @@ def _audit_not_delegated(messages: Iterable[str]) -> str:
     return "valid"
 
 
+def _audit_worker_interruption(
+    messages: Iterable[str],
+) -> tuple[str, dict[str, int] | None]:
+    """Parse the one exact final interruption line from a root completion."""
+
+    lines: list[tuple[str, bool]] = []
+    for message in set(messages):
+        message_lines = [line for line in message.splitlines() if line.strip()]
+        for index, line in enumerate(message_lines):
+            if line.strip().startswith(WORKER_INTERRUPTION_PREFIX):
+                lines.append((line, index == len(message_lines) - 1))
+    if not lines:
+        return "missing", None
+    if len(lines) != 1 or not lines[0][1]:
+        return "invalid", None
+    match = WORKER_INTERRUPTION_PATTERN.fullmatch(lines[0][0])
+    if not match:
+        return "invalid", None
+    return "valid", {name: int(value) for name, value in match.groupdict().items()}
+
+
 def _audit_rollout_id(path: str) -> str | None:
     match = ROLLOUT_ID_PATTERN.search(Path(path).name)
     return match.group("id") if match else None
@@ -1749,8 +1839,14 @@ def audit_sessions(
                         continue
                     kind = _audit_event_kind(event)
                     spawn = _audit_spawn_call(event)
+                    followup = _audit_followup_call(event)
                     spawn_output = _audit_spawn_output(event)
-                    if kind is None and spawn is None and spawn_output is None:
+                    if (
+                        kind is None
+                        and spawn is None
+                        and followup is None
+                        and spawn_output is None
+                    ):
                         continue
                     event_time = _audit_event_time(event, modified)
                     meta = _audit_session_meta(event)
@@ -1763,6 +1859,7 @@ def audit_sessions(
                             "event": event,
                             "kind": kind,
                             "spawn": spawn,
+                            "followup": followup,
                             "spawn_output": spawn_output,
                             "path": str(path),
                             "line": line_number,
@@ -1845,6 +1942,7 @@ def audit_sessions(
         if record.get("spawn_output")
     }
     spawn_calls: dict[str, dict[str, Any]] = {}
+    followup_calls: dict[str, dict[str, Any]] = {}
     for record in current_records:
         spawn = record.get("spawn")
         if spawn:
@@ -1853,6 +1951,12 @@ def audit_sessions(
             spawn["time"] = record["time"]
             spawn["failed"] = bool(spawn_outputs.get(spawn["call_id"], {}).get("failed"))
             spawn_calls.setdefault(spawn["call_id"], spawn)
+        followup = record.get("followup")
+        if followup:
+            followup = dict(followup)
+            followup["session_key"] = record["session_key"]
+            followup["time"] = record["time"]
+            followup_calls.setdefault(followup["call_id"], followup)
 
     # The old completion counters remain intentionally broad: they include root
     # and Luna sessions, while the new counters split those same records by role.
@@ -2206,10 +2310,210 @@ def audit_sessions(
             "root_turns": root_turns,
             "direct_root_turns": direct_root_turns,
             "successful_root_turns": successful_root_turns,
+            "root_context_by_worker": root_context_by_worker,
             "lifecycle": lifecycle,
         }
 
     role_audits = {role: audit_role(role) for role in ("luna", "terra")}
+
+    # v8 turn counters intentionally do not feed the v7 session lifecycle or
+    # concurrency code above. A reused Worker may therefore retain one session
+    # while exposing multiple terminal turns here.
+    worker_turns: dict[str, dict[str, dict[str, Any]]] = {
+        "luna": {},
+        "terra": {},
+    }
+    for record in current_records:
+        if record["kind"] not in {"task_started", "task_complete", "turn_aborted"}:
+            continue
+        session_key = record["session_key"]
+        info = sessions.get(session_key)
+        role = (
+            "luna"
+            if _audit_is_luna(info)
+            else "terra"
+            if _audit_is_terra(info)
+            else None
+        )
+        turn_id = _audit_turn_id(record["event"])
+        if role is None or not turn_id:
+            continue
+        turn_key = _audit_worker_key(session_key, turn_id)
+        turn = worker_turns[role].setdefault(
+            turn_key,
+            {
+                "session_key": session_key,
+                "turn_id": turn_id,
+                "started_at": None,
+                "completed": False,
+                "interrupted": False,
+            },
+        )
+        if record["kind"] == "task_started":
+            started_at = turn["started_at"]
+            if started_at is None or record["time"] < started_at:
+                turn["started_at"] = record["time"]
+        elif record["kind"] == "task_complete":
+            turn["completed"] = True
+        else:
+            turn["interrupted"] = True
+
+    started_turns: dict[str, dict[str, dict[str, Any]]] = {
+        role: {
+            turn_key: turn
+            for turn_key, turn in turns.items()
+            if turn["started_at"] is not None
+        }
+        for role, turns in worker_turns.items()
+    }
+    for role, turns in started_turns.items():
+        result[f"{role}_turns_started"] = len(turns)
+        result[f"{role}_turns_completed"] = sum(
+            turn["completed"] for turn in turns.values()
+        )
+        result[f"{role}_turns_interrupted"] = sum(
+            not turn["completed"] and turn["interrupted"]
+            for turn in turns.values()
+        )
+    result["worker_turns_started"] = sum(
+        result[f"{role}_turns_started"] for role in started_turns
+    )
+    result["worker_turns_completed"] = sum(
+        result[f"{role}_turns_completed"] for role in started_turns
+    )
+    result["worker_turns_interrupted"] = sum(
+        result[f"{role}_turns_interrupted"] for role in started_turns
+    )
+
+    followups_by_worker: dict[str, list[dict[str, Any]]] = {}
+    for activity in activity_records:
+        if activity.get("kind") != "interacted":
+            continue
+        followup = followup_calls.get(activity.get("event_id"))
+        session_key = activity.get("thread_id")
+        if not followup or not isinstance(session_key, str):
+            continue
+        if not _audit_is_worker(sessions.get(session_key)):
+            continue
+        followups_by_worker.setdefault(session_key, []).append(
+            {
+                "time": activity["record"]["time"],
+                "is_correction": followup["is_correction"],
+            }
+        )
+
+    turns_by_session: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    for turns in started_turns.values():
+        for turn_key, turn in turns.items():
+            turns_by_session.setdefault(turn["session_key"], []).append((turn_key, turn))
+
+    correction_turn_keys: set[str] = set()
+    reused_threads: set[str] = set()
+    for session_key, followups in followups_by_worker.items():
+        candidate_turns = sorted(
+            turns_by_session.get(session_key, []),
+            key=lambda item: (item[1]["started_at"], item[0]),
+        )
+        assigned_turns: set[str] = set()
+        correction_seen = False
+        for followup in sorted(followups, key=lambda item: item["time"]):
+            candidate = next(
+                (
+                    item
+                    for item in candidate_turns
+                    if item[0] not in assigned_turns
+                    and item[1]["started_at"] >= followup["time"]
+                ),
+                None,
+            )
+            if candidate is None:
+                continue
+            turn_key, _turn = candidate
+            assigned_turns.add(turn_key)
+            reused_threads.add(session_key)
+            if followup["is_correction"] and not correction_seen:
+                correction_seen = True
+                correction_turn_keys.add(turn_key)
+            else:
+                result["worker_reuse_policy_violations"] += 1
+
+    turn_index = {
+        turn_key: turn
+        for turns in started_turns.values()
+        for turn_key, turn in turns.items()
+    }
+    result["worker_correction_turns_started"] = len(correction_turn_keys)
+    result["worker_correction_turns_completed"] = sum(
+        turn_index[turn_key]["completed"] for turn_key in correction_turn_keys
+    )
+    result["worker_correction_turns_failed"] = sum(
+        not turn_index[turn_key]["completed"] and turn_index[turn_key]["interrupted"]
+        for turn_key in correction_turn_keys
+    )
+    result["worker_threads_reused"] = len(reused_threads)
+
+    def direct_root_turn(
+        role: str,
+        session_key: str,
+    ) -> tuple[str, str] | None:
+        role_audit = role_audits[role]
+        if session_key in role_audit["nested_keys"]:
+            return None
+        info = sessions.get(session_key) or {}
+        root_session, turn_id = role_audit["root_context_by_worker"].get(
+            session_key,
+            (info.get("parent_thread_id"), None),
+        )
+        if not root_session or not turn_id:
+            return None
+        metadata_parent = info.get("parent_thread_id")
+        recorded_parent = role_audit["root_context_by_worker"].get(
+            session_key,
+            (None, None),
+        )[0]
+        direct_parent = (
+            metadata_parent == root_session
+            if metadata_parent
+            else recorded_parent == root_session
+        )
+        return (root_session, turn_id) if direct_parent else None
+
+    direct_interrupted_turns: dict[tuple[str, str], set[str]] = {}
+    for role, turns in started_turns.items():
+        for turn_key, turn in turns.items():
+            if turn["completed"] or not turn["interrupted"]:
+                continue
+            root_turn = direct_root_turn(role, turn["session_key"])
+            if root_turn:
+                direct_interrupted_turns.setdefault(root_turn, set()).add(
+                    f"{role}:{turn_key}"
+                )
+
+    for root_turn, interrupted_turns in direct_interrupted_turns.items():
+        report_status, report = _audit_worker_interruption(
+            root_completion_messages.get(root_turn, set())
+        )
+        interrupted_count = len(interrupted_turns)
+        if report_status == "missing":
+            result["worker_interrupts_missing_reason"] += interrupted_count
+            continue
+        if report_status == "invalid" or report is None:
+            result["worker_interrupt_reports_invalid"] += 1
+            continue
+        if sum(report.values()) != interrupted_count:
+            result["worker_interrupt_reports_invalid"] += 1
+            continue
+        result["worker_interrupts_reported"] += interrupted_count
+        for reason in WORKER_INTERRUPTION_REASONS:
+            result[f"worker_interrupts_{reason}"] += report[reason]
+
+    for root_turn, messages in root_completion_messages.items():
+        if root_turn in direct_interrupted_turns:
+            continue
+        report_status, _report = _audit_worker_interruption(messages)
+        if report_status != "missing":
+            result["worker_interrupt_reports_invalid"] += 1
+
     result["completed"] = len(completed_turns)
     result["reports"] = sum(completed_turns.values())
     result["worker_started"] = sum(result[f"{role}_started"] for role in role_audits)
@@ -2454,6 +2758,9 @@ def check_worker_session_policy(session_audit: dict[str, Any]) -> list[dict[str,
     mismatched = session_audit.get("route_units_mismatched", 0)
     unknown = session_audit.get("route_units_unknown", 0)
     invalid = session_audit.get("worker_route_reports_invalid", 0)
+    reuse_policy_violations = session_audit.get("worker_reuse_policy_violations", 0)
+    missing_interrupt_reason = session_audit.get("worker_interrupts_missing_reason", 0)
+    invalid_interrupt_report = session_audit.get("worker_interrupt_reports_invalid", 0)
     if isinstance(worker_peak, int) and worker_peak > 8:
         checks.append(
             check(
@@ -2516,12 +2823,45 @@ def check_worker_session_policy(session_audit: dict[str, Any]) -> list[dict[str,
                 value=invalid,
             )
         )
+    if isinstance(reuse_policy_violations, int) and reuse_policy_violations > 0:
+        checks.append(
+            check(
+                "warning",
+                "worker-reuse-policy-violation",
+                "Worker followups violated the single-correction reuse policy: "
+                f"{reuse_policy_violations}",
+                section="sessions",
+                value=reuse_policy_violations,
+            )
+        )
+    if isinstance(missing_interrupt_reason, int) and missing_interrupt_reason > 0:
+        checks.append(
+            check(
+                "warning",
+                "worker-interruption-reason-missing",
+                "Direct Worker interruptions are missing structured reason reports: "
+                f"{missing_interrupt_reason}",
+                section="sessions",
+                value=missing_interrupt_reason,
+            )
+        )
+    if isinstance(invalid_interrupt_report, int) and invalid_interrupt_report > 0:
+        checks.append(
+            check(
+                "warning",
+                "worker-interruption-report-invalid",
+                "Invalid Worker interruption reports detected: "
+                f"{invalid_interrupt_report}",
+                section="sessions",
+                value=invalid_interrupt_report,
+            )
+        )
     if not checks:
         checks.append(
             check(
                 "ok",
                 "worker-session-policy-ok",
-                "Worker session concurrency, nesting, and route reports are within policy",
+                "Worker session concurrency, nesting, route, and interruption reports are within policy",
                 section="sessions",
             )
         )

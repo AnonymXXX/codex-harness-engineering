@@ -54,14 +54,22 @@ never the original worktree by accident.
 
 ### Dispatch and response contract
 
-Every Worker dispatch starts with exactly one `Route: <skill>/<phase>` line, followed by these five
+Every Worker dispatch starts with exactly one `Route: <skill>/<phase>` line, followed by these seven
 headings, even when a field is `N/A`:
 
 - `Objective`: one concrete, independently acceptable result;
 - `Ownership`: the absolute worktree path, allowed read/write paths, and exclusively owned state;
+- `Starting State`: the branch, base commit, existing dirty paths, and any accepted prerequisite work;
 - `Interfaces`: inputs, outputs, or contracts that must remain compatible;
-- `Constraints`: exclusions, prohibited changes, and other hard boundaries; and
+- `Constraints`: exclusions, prohibited changes, and other hard boundaries;
+- `Git Boundary`: whether commit is allowed, with push, tag, PR/MR, branch, and worktree operations
+  forbidden unless explicitly authorized; and
 - `Verification`: exact commands or objective inspection criteria.
+
+For a write unit, the absolute worktree path in `Ownership` identifies the execution root; exclusivity
+applies only to the explicitly allowed write paths and named mutable state within that root. `Starting
+State` and `Git Boundary` are required rather than inferred; a read-only unit uses `N/A` where a field
+does not apply. The Worker must not guess an omitted boundary.
 
 Every `spawn_agent` call governed by this workflow must set `agent_type` explicitly to either
 `luna_worker` or `terra_worker`, according to the selected route. Never omit `agent_type`, use the generic
@@ -86,6 +94,52 @@ task. Every worker response uses these headings:
 For a read-only unit, `Changes` records the evidence produced and explicitly states that no files were
 changed. The response contract makes review predictable; it does not transfer integration or decision
 ownership away from the main agent.
+
+### Ownership lifecycle and correction
+
+Worker ownership follows `Assigned -> Running -> Review -> Released`, with `Interrupted` and one
+`Correction` turn as bounded branches:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Assigned
+    Assigned --> Running
+    Running --> Review: completed / blocked / failed
+    Running --> Interrupted: legal interruption
+    Review --> Correction: recoverable and not corrected
+    Correction --> ReviewFinal: same Worker followup
+    Review --> Released: adopted / partial / rejected / failed
+    ReviewFinal --> Released: adopted / partial / rejected / failed
+    Interrupted --> Correction: safe and recoverable
+    Interrupted --> Released: main agent takes over or stops
+```
+
+While `Running`, `Correction`, or waiting for the correction result, the Worker keeps exclusive
+ownership of its write paths. The main agent may read the diff, prepare review, or work on disjoint
+paths, but must not edit an owned path. Parallel Workers must have disjoint write paths. The main agent
+records release before taking over an owned path; after takeover, the original Worker cannot write that
+path again unless a new work unit establishes a fresh boundary.
+
+An ordinary quality defect is corrected through the same Worker's `followup_task`, and the correction
+request must contain exactly `Correction: 1/1`, the specific defect, the permitted delta, and the
+verification to rerun. Each work unit gets at most one correction. If the correction still fails, the
+main agent classifies the result as `partial`, `rejected`, or `failed`, then takes over or stops. An
+unrelated new work unit always uses a new `spawn_agent`; it must not reuse the same Worker thread.
+
+Only the main agent may interrupt a Worker, and only for one of these reasons:
+
+- `overlap`: an ownership or write conflict exists;
+- `unsafe`: a security or destructive-operation risk appears;
+- `scope_violation`: the Worker clearly exceeded its assigned scope;
+- `user_redirect`: the user changed or ended the requested direction; or
+- `unresponsive`: there is no useful progress and the Worker cannot close normally.
+
+Needing an ordinary correction is not an interruption reason. When a direct Worker turn is actually
+interrupted, the root task appends this exact structured line once:
+
+```text
+Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>
+```
 
 Workers are strict leaves. They must not call collaboration tools such as `spawn_agent`,
 `followup_task`, `send_message`, `wait_agent`, `list_agents`, or `interrupt_agent`; they must not poll,
@@ -133,6 +187,11 @@ The main agent owns coordination, conflict resolution, review, integration, fina
 final answer. Treat every worker diff, artifact, and summary as untrusted until reviewed against its
 scope and validation. Review the actual diff or evidence, confirm that owned paths and interfaces were
 respected, and independently rerun the critical verification before adopting a result.
+
+An interrupted turn followed by the one allowed same-Worker correction remains one work unit. Do not
+classify the interrupted turn as terminal `failed` solely because it was interrupted; review the final
+corrected result once and classify that work unit once. If no correction is allowed or the final review
+still fails, classify the terminal result according to the rules below.
 
 Classify each terminal Worker unit during that review:
 

@@ -7,6 +7,11 @@ import unittest
 from pathlib import Path
 from typing import Optional
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 and earlier.
+    tomllib = None
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SETUP = ROOT / "scripts" / "harness_setup.py"
@@ -21,8 +26,12 @@ Verify the result when practical.
 Do not make unrelated changes.
 Do not call collaboration tools, including spawn_agent, followup_task, send_message, wait_agent, list_agents, or interrupt_agent.
 Do not delegate, coordinate, poll, wait for, or message the main agent or any other agent. Complete the assigned scope yourself.
-Expect the task prompt to define Objective, Ownership, Interfaces, Constraints, and Verification.
+Expect the task prompt to define Objective, Ownership, Starting State, Interfaces, Constraints, Git Boundary, and Verification.
 If scope or ownership remains ambiguous, return blocked immediately instead of expanding the task or contacting another agent.
+Treat the task's Ownership paths as exclusive: modify only those paths and do not edit another Worker's paths.
+Keep that ownership through any correction. A correction marked Correction: 1/1 addresses only the stated defect within the original boundary; do not accept a second correction or unrelated work.
+Do not perform branch, push, tag, PR, or worktree operations unless Git Boundary explicitly authorizes them.
+Before reporting, record actual git status, the relevant diff or commit SHA, and the verification result.
 Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
 Set Status to completed, blocked, or failed.
 """
@@ -39,8 +48,12 @@ Do not make unrelated changes.
 Do not call collaboration tools, including spawn_agent, followup_task, send_message, wait_agent, list_agents, or interrupt_agent.
 Do not delegate, coordinate, poll, wait for, or message the main agent or any other agent. Complete the assigned scope yourself.
 Do not make architecture, product, dependency, migration, or release decisions; use the interfaces and decisions fixed by the main agent.
-Expect the task prompt to define Objective, Ownership, Interfaces, Constraints, and Verification.
+Expect the task prompt to define Objective, Ownership, Starting State, Interfaces, Constraints, Git Boundary, and Verification.
 If scope or ownership remains ambiguous, return blocked immediately instead of expanding the task or contacting another agent.
+Treat the task's Ownership paths as exclusive: modify only those paths and do not edit another Worker's paths.
+Keep that ownership through any correction. A correction marked Correction: 1/1 addresses only the stated defect within the original boundary; do not accept a second correction or unrelated work.
+Do not perform branch, push, tag, PR, or worktree operations unless Git Boundary explicitly authorizes them.
+Before reporting, record actual git status, the relevant diff or commit SHA, and the verification result.
 Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
 Set Status to completed, blocked, or failed.
 """
@@ -134,6 +147,29 @@ class HarnessSetupCliTests(unittest.TestCase):
 
         self.assertEqual(EXPECTED_TERRA_CONFIG, config.read_text(encoding="utf-8"))
 
+    def test_worker_agent_configs_are_valid_toml_and_match_roles(self) -> None:
+        expected = {
+            "luna-worker.toml": ("luna_worker", "gpt-5.6-luna", EXPECTED_LUNA_CONFIG),
+            "terra-worker.toml": ("terra_worker", "gpt-5.6-terra", EXPECTED_TERRA_CONFIG),
+        }
+
+        for filename, (role, model, expected_text) in expected.items():
+            with self.subTest(filename=filename):
+                config = ROOT / ".codex" / "agents" / filename
+                text = config.read_text(encoding="utf-8")
+
+                self.assertEqual(expected_text, text)
+                if tomllib is None:
+                    continue
+
+                parsed = tomllib.loads(text)
+                self.assertEqual(role, parsed["name"])
+                self.assertEqual(model, parsed["model"])
+                self.assertEqual("max", parsed["model_reasoning_effort"])
+                self.assertIn("Starting State", parsed["developer_instructions"])
+                self.assertIn("Git Boundary", parsed["developer_instructions"])
+                self.assertIn("Correction: 1/1", parsed["developer_instructions"])
+
     def test_core_worker_routes_are_declared_and_doctor_auditable(self) -> None:
         routes = {
             "diagnosing-bugs": {
@@ -193,6 +229,37 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("spawn_agent.agent_type", workflow)
         self.assertIn("combined sum", workflow)
 
+    def test_worker_dispatch_contract_covers_ownership_correction_and_interruptions(self) -> None:
+        workflow = (
+            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
+        ).read_text(encoding="utf-8")
+        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
+        fields = (
+            "Objective",
+            "Ownership",
+            "Starting State",
+            "Interfaces",
+            "Constraints",
+            "Git Boundary",
+            "Verification",
+        )
+
+        self.assertIn("these seven", workflow)
+        for field in fields:
+            self.assertIn(f"`{field}`", workflow)
+        self.assertIn("Correction: 1/1", workflow)
+        self.assertIn("followup_task", workflow)
+        self.assertIn("new `spawn_agent`", workflow)
+        self.assertIn(
+            "Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>",
+            workflow,
+        )
+        for reason in ("overlap", "unsafe", "scope_violation", "user_redirect", "unresponsive"):
+            self.assertIn(f"`{reason}`", workflow)
+        self.assertIn("seven-field task contract", recovery)
+        self.assertIn("Correction: 1/1", recovery)
+        self.assertIn("Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>", recovery)
+
     def test_public_tree_has_no_internal_project_identifiers(self) -> None:
         forbidden = (
             "dy" + "cx",
@@ -243,7 +310,7 @@ class HarnessSetupCliTests(unittest.TestCase):
     def test_recovery_doc_documents_worker_acceptance_contract(self) -> None:
         recovery = RECOVERY_DOC.read_text(encoding="utf-8")
 
-        self.assertIn("five-field task contract", recovery)
+        self.assertIn("seven-field task contract", recovery)
         self.assertIn("structured response contract", recovery)
         self.assertIn("dispatch Luna and Terra", recovery)
         self.assertIn("one machine-readable", recovery)

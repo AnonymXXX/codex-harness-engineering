@@ -35,6 +35,7 @@ Use the Standard Lane for cohesive local features and fixes that exceed the Fast
 - After risk classification, route every non-simple engineering task through independent Worker work units by default.
 - Prefer `luna_worker` for bounded routine work and `terra_worker` for bounded Heavy Lane implementation. Common domain Skills own their stage-specific routes.
 - Every routed `spawn_agent` call must set `agent_type` explicitly to the selected `luna_worker` or `terra_worker` and use the workflow's auditable `route__<skill>__<phase>__<purpose>` task name; never use the generic default and label it afterward.
+- Keep each Worker write path exclusively owned until explicit release; use one same-Worker correction marked `Correction: 1/1`, and start unrelated work with a new spawn. The detailed lifecycle and interruption protocol lives in the linked workflow.
 - Use at most 8 direct Worker threads, including at most 5 Luna threads. Workers are leaves and must not spawn, delegate, coordinate, or nest subagents.
 - Structured dispatch, response and acceptance reporting, routing precedence, thresholds, eligible unit types, queueing, fork bounds, exclusions, parallel disjointness, and main-agent review/failure handling are defined in the [Harness workflow](../../../.codex/docs/workflows/harness-engineering.md).
 

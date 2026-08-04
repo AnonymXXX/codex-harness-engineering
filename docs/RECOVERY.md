@@ -16,9 +16,13 @@ Codex configuration into Git.
 - Managed files are symlinked into `~/.codex` and `~/.agents/skills` so Git remains the versioned
   source of truth.
 - Codex-managed system skills remain owned by Codex and are not copied into this repository.
-- Luna and Terra dispatches use the tracked route marker, five-field task contract, and structured response contract.
-  A root task reports adopted, partially adopted, rejected, and failed work-unit
-  counts for each Worker role it used so Harness Doctor can audit actual result use and route compliance.
+- Luna and Terra dispatches use the tracked route marker, seven-field task contract, and structured response contract.
+  The seven fields are `Objective`, `Ownership`, `Starting State`, `Interfaces`, `Constraints`, `Git Boundary`,
+  and `Verification`; the detailed lifecycle remains in the Harness workflow.
+- Worker write paths stay exclusively owned until the main agent records release. An ordinary quality defect
+  uses one same-Worker `followup_task` marked `Correction: 1/1`; unrelated work gets a new spawn.
+  A root task reports adopted, partially adopted, rejected, and failed work-unit counts for each Worker role
+  it used so Harness Doctor can audit actual result use and route compliance.
 
 ## Recovery Contract
 
@@ -101,8 +105,13 @@ path. Permanent deletion is not part of recovery or rollback.
 - A temporary empty HOME can install and check profiles twice without drift.
 - The installed `luna_worker` and `terra_worker` match their tracked TOML files and are available to
   fresh Codex tasks.
-- A fresh task can dispatch Luna and Terra with the structured contract and emits one machine-readable
+- A fresh task can dispatch Luna and Terra with the seven-field structured contract and emits one machine-readable
   acceptance line for each role used after the main agent reviews the results.
+- When a direct Worker turn is interrupted, the root task emits this exact line with only the five approved reasons:
+
+  ```text
+  Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>
+  ```
 - The tracked public Skill inventory matches the Manifest and actual directories.
 - Security checks reject real environment files, Codex config, private keys, nested Git metadata,
   generated caches, known credential formats, and hardcoded database passwords.
