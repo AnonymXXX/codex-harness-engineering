@@ -63,6 +63,11 @@ headings, even when a field is `N/A`:
 - `Constraints`: exclusions, prohibited changes, and other hard boundaries; and
 - `Verification`: exact commands or objective inspection criteria.
 
+Every `spawn_agent` call governed by this workflow must set `agent_type` explicitly to either
+`luna_worker` or `terra_worker`, according to the selected route. Never omit `agent_type`, use the generic
+default Worker for a routed unit, or infer a role afterward from the unit's complexity. The task message
+must contain the exact `Route:` line so the runtime log records both the selected role and route.
+
 A worker whose scope or ownership remains ambiguous returns `Status: blocked` instead of expanding the
 task. Every worker response uses these headings:
 
@@ -132,8 +137,10 @@ Luna 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
 Terra 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
 ```
 
-Count work units, including queued units run by reusing an existing Worker thread. Each role's four values
-cover every terminal unit accepted for that role. A failed spawn that never creates a thread is an
+Count work units, including queued units run by reusing an existing Worker thread. Assign each unit to the
+role passed in that unit's `spawn_agent.agent_type`; never reconstruct the role from its task, model, name,
+or result. Each role's four values cover every terminal unit accepted for that role, and their combined sum
+must equal the number of terminal named-Worker units. A failed spawn that never creates a thread is an
 operational caveat, not a work unit. If a non-simple completed root turn uses no Worker, append exactly one
 line with the applicable reason:
 

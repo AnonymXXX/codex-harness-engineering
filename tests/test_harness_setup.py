@@ -172,6 +172,24 @@ class HarnessSetupCliTests(unittest.TestCase):
                 self.assertIn(f"Route: {route}", skill_text)
                 self.assertIn(f'"{route}": "{role}"', doctor_source)
 
+    def test_worker_routing_requires_explicit_agent_type(self) -> None:
+        workflow = (
+            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
+        ).read_text(encoding="utf-8")
+        global_agents = (ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
+        harness_skill = (
+            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        for content in (workflow, global_agents, harness_skill):
+            normalized = " ".join(content.split())
+            self.assertIn("spawn_agent", normalized)
+            self.assertIn("agent_type", normalized)
+            self.assertIn("generic default", normalized)
+
+        self.assertIn("spawn_agent.agent_type", workflow)
+        self.assertIn("combined sum", workflow)
+
     def test_public_tree_has_no_internal_project_identifiers(self) -> None:
         forbidden = (
             "dy" + "cx",
