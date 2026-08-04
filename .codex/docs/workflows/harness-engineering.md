@@ -87,6 +87,12 @@ For a read-only unit, `Changes` records the evidence produced and explicitly sta
 changed. The response contract makes review predictable; it does not transfer integration or decision
 ownership away from the main agent.
 
+Workers are strict leaves. They must not call collaboration tools such as `spawn_agent`,
+`followup_task`, `send_message`, `wait_agent`, `list_agents`, or `interrupt_agent`; they must not poll,
+wait for, message, or coordinate the main agent or another agent. When blocked, a Worker returns its
+terminal `Status: blocked` report immediately. When its unit is complete or has failed, it returns the
+corresponding terminal report immediately instead of waiting for other work or coordination.
+
 ### Scheduling and parallelism
 
 At most 8 direct Worker threads may be open concurrently, excluding the main thread. At most 5 may be

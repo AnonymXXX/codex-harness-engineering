@@ -1457,6 +1457,157 @@ class SessionAuditTests(unittest.TestCase):
         self.assertEqual(0, audit["route_units_mismatched"])
         self.assertEqual(0, audit["route_units_unknown"])
 
+    def test_real_worker_events_link_to_long_lived_root_turns(self) -> None:
+        root_id = "11111111-1111-4111-8111-111111111111"
+        luna_one_id = "22222222-2222-4222-8222-222222222222"
+        luna_two_id = "33333333-3333-4333-8333-333333333333"
+        terra_id = "44444444-4444-4444-8444-444444444444"
+        root_rows = [self.metadata(self.now - timedelta(days=2), root_id)]
+
+        def spawn_rows(
+            *, call_id: str, child_id: str, role: str, route: str, turn_id: str
+        ) -> list[dict]:
+            return [
+                {
+                    "timestamp": self.stamp(self.now),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "spawn_agent",
+                        "call_id": call_id,
+                        "arguments": json.dumps(
+                            {
+                                "agent_type": role,
+                                "task_name": f"route__{route.replace('/', '__')}__fixture",
+                            }
+                        ),
+                        "internal_chat_message_metadata_passthrough": {
+                            "turn_id": turn_id
+                        },
+                    },
+                },
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": call_id,
+                        "agent_thread_id": child_id,
+                        "kind": "started",
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": f"{call_id}-interaction",
+                        "agent_thread_id": child_id,
+                        "kind": "interacted",
+                    },
+                ),
+            ]
+
+        root_rows.extend(
+            spawn_rows(
+                call_id="call-luna-one",
+                child_id=luna_one_id,
+                role="luna_worker",
+                route="diagnosing_bugs/evidence",
+                turn_id="root-turn-one",
+            )
+        )
+        root_rows.append(
+            self.event(
+                self.now + timedelta(seconds=2),
+                "event_msg",
+                {
+                    "type": "task_complete",
+                    "turn_id": "root-turn-one",
+                    "last_agent_message": (
+                        "Luna 验收：adopted=1 partial=0 rejected=0 failed=0"
+                    ),
+                },
+            )
+        )
+        root_rows.extend(
+            spawn_rows(
+                call_id="call-luna-two",
+                child_id=luna_two_id,
+                role="luna_worker",
+                route="tdd/tests",
+                turn_id="root-turn-two",
+            )
+        )
+        root_rows.extend(
+            spawn_rows(
+                call_id="call-terra",
+                child_id=terra_id,
+                role="terra_worker",
+                route="tdd/implementation",
+                turn_id="root-turn-two",
+            )
+        )
+        root_rows.append(
+            self.event(
+                self.now + timedelta(seconds=4),
+                "event_msg",
+                {
+                    "type": "task_complete",
+                    "turn_id": "root-turn-two",
+                    "last_agent_message": (
+                        "Luna 验收：adopted=2 partial=0 rejected=0 failed=0\n"
+                        "Terra 验收：adopted=0 partial=1 rejected=0 failed=0"
+                    ),
+                },
+            )
+        )
+        self.write(
+            self.root / f"rollout-2026-08-02T19-39-52-{root_id}.jsonl",
+            root_rows,
+        )
+
+        for child_id, role, offset in (
+            (luna_one_id, "luna_worker", 1),
+            (luna_two_id, "luna_worker", 3),
+            (terra_id, "terra_worker", 3),
+        ):
+            child_meta = self.metadata(
+                self.now + timedelta(seconds=offset),
+                child_id,
+                parent=root_id,
+                depth=1,
+                role=role,
+            )
+            child_meta["payload"]["session_id"] = root_id
+            self.write(
+                self.root / f"rollout-2026-08-04T10-00-00-{child_id}.jsonl",
+                [
+                    child_meta,
+                    self.event(
+                        self.now + timedelta(seconds=offset + 1),
+                        "event_msg",
+                        {
+                            "type": "task_complete",
+                            "turn_id": f"{child_id}-turn",
+                        },
+                    ),
+                ],
+            )
+
+        audit = doctor.audit_sessions(self.root, 1)
+
+        self.assertEqual(2, audit["root_turns_with_luna"])
+        self.assertEqual(1, audit["root_turns_with_terra"])
+        self.assertEqual(2, audit["root_turns_with_worker"])
+        self.assertEqual(1, audit["mixed_worker_root_turns"])
+        self.assertEqual(3, audit["luna_units_adopted"])
+        self.assertEqual(1, audit["terra_units_partially_adopted"])
+        self.assertEqual(2, audit["root_turns_with_luna_outcome_report"])
+        self.assertEqual(1, audit["root_turns_with_terra_outcome_report"])
+        self.assertEqual(0, audit["luna_outcome_reports_invalid"])
+        self.assertEqual(0, audit["terra_outcome_reports_invalid"])
+
     def test_encrypted_spawn_message_uses_auditable_task_name_route(self) -> None:
         self.write(
             self.root / "encrypted-route.jsonl",

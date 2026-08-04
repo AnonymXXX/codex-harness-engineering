@@ -1932,7 +1932,11 @@ def audit_sessions(
         explicit_parent_turn = payload.get("parent_turn_id")
         if isinstance(explicit_parent_turn, str) and explicit_parent_turn.strip():
             turn_id = explicit_parent_turn.strip()
-        parent_turn_by_thread[thread_id] = (record["session_key"], turn_id)
+        # Later interaction activity often omits a turn ID. Preserve the
+        # concrete link established by the started event instead of replacing
+        # it with an unknown turn.
+        if turn_id or thread_id not in parent_turn_by_thread:
+            parent_turn_by_thread[thread_id] = (record["session_key"], turn_id)
 
     def audit_role(role: str) -> dict[str, Any]:
         start_keys: set[str] = set()
