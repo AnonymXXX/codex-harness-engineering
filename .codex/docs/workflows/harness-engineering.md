@@ -68,6 +68,12 @@ Every `spawn_agent` call governed by this workflow must set `agent_type` explici
 default Worker for a routed unit, or infer a role afterward from the unit's complexity. The task message
 must contain the exact `Route:` line so the runtime log records both the selected role and route.
 
+Because Codex may encrypt the logged task message, `task_name` must also begin with an auditable route
+prefix: `route__<skill>__<phase>__<purpose>`. Convert hyphens in the route to underscores. For example,
+`Route: tdd/implementation` uses a task name such as `route__tdd__implementation__money_contract`.
+Doctor treats the message line as canonical when readable and otherwise resolves this prefix against the
+installed route registry; a disagreement between the two forms is invalid.
+
 A worker whose scope or ownership remains ambiguous returns `Status: blocked` instead of expanding the
 task. Every worker response uses these headings:
 

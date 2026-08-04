@@ -1553,6 +1553,7 @@ def _audit_spawn_call(event: dict[str, Any]) -> dict[str, Any] | None:
     role = next((value for value in role_values if isinstance(value, str)), None)
     worker_role = WORKER_ROLE_ALIASES.get(role) if isinstance(role, str) else None
     message = arguments.get("message")
+    task_name = arguments.get("task_name")
     route_matches = (
         WORKER_ROUTE_PATTERN.findall(message) if isinstance(message, str) else []
     )
@@ -1564,7 +1565,28 @@ def _audit_spawn_call(event: dict[str, Any]) -> dict[str, Any] | None:
         "terra": worker_role == "terra",
         "route": route_matches[0] if len(route_matches) == 1 else None,
         "route_invalid": isinstance(message, str) and "Route:" in message and len(route_matches) != 1,
+        "task_name": task_name.strip() if isinstance(task_name, str) else None,
     }
+
+
+def _audit_task_name_route(
+    task_name: str | None,
+    route_expectations: dict[str, str],
+) -> tuple[str | None, bool]:
+    if not isinstance(task_name, str) or not task_name.startswith("route__"):
+        return None, False
+    matches = [
+        route
+        for route in route_expectations
+        if task_name == _worker_route_task_prefix(route)
+        or task_name.startswith(f"{_worker_route_task_prefix(route)}__")
+    ]
+    return (matches[0], False) if len(matches) == 1 else (None, True)
+
+
+def _worker_route_task_prefix(route: str) -> str:
+    skill, phase = route.split("/", 1)
+    return f"route__{skill.replace('-', '_')}__{phase.replace('-', '_')}"
 
 
 def _audit_spawn_output(event: dict[str, Any]) -> dict[str, Any] | None:
@@ -2225,18 +2247,28 @@ def audit_sessions(
         else:
             active_workers.discard(key)
 
+    expected_routes = route_expectations or WORKER_ROUTE_EXPECTATIONS
     for spawn in spawn_calls.values():
         role = spawn.get("worker_role")
         if spawn.get("failed") or role not in role_audits:
             continue
-        route = spawn.get("route")
+        message_route = spawn.get("route")
+        task_name_route, task_name_invalid = _audit_task_name_route(
+            spawn.get("task_name"), expected_routes
+        )
+        route = message_route or task_name_route
+        route_invalid = bool(
+            spawn.get("route_invalid")
+            or task_name_invalid
+            or (message_route and task_name_route and message_route != task_name_route)
+        )
+        if route_invalid:
+            result["worker_route_reports_invalid"] += 1
         if not route:
             result["route_units_unknown"] += 1
-            if spawn.get("route_invalid"):
-                result["worker_route_reports_invalid"] += 1
             continue
         result["route_units_reported"] += 1
-        expected_role = (route_expectations or WORKER_ROUTE_EXPECTATIONS).get(route)
+        expected_role = expected_routes.get(route)
         if expected_role is None:
             result["route_units_unknown"] += 1
         elif expected_role == role:

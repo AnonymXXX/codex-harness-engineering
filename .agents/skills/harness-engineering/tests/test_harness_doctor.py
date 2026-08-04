@@ -1457,6 +1457,70 @@ class SessionAuditTests(unittest.TestCase):
         self.assertEqual(0, audit["route_units_mismatched"])
         self.assertEqual(0, audit["route_units_unknown"])
 
+    def test_encrypted_spawn_message_uses_auditable_task_name_route(self) -> None:
+        self.write(
+            self.root / "encrypted-route.jsonl",
+            [
+                self.metadata(self.now, "encrypted-route-root"),
+                {
+                    "timestamp": self.stamp(self.now),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "spawn_agent",
+                        "call_id": "encrypted-route-call",
+                        "arguments": json.dumps(
+                            {
+                                "agent_type": "luna_worker",
+                                "task_name": "route__tdd__tests__red_evidence",
+                                "message": "gAAAAABencrypted",
+                            }
+                        ),
+                        "turn_id": "encrypted-route-turn",
+                    },
+                },
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["route_units_reported"])
+        self.assertEqual(1, audit["route_units_matched"])
+        self.assertEqual(0, audit["route_units_mismatched"])
+        self.assertEqual(0, audit["route_units_unknown"])
+        self.assertEqual(0, audit["worker_route_reports_invalid"])
+
+    def test_conflicting_message_and_task_name_routes_are_invalid(self) -> None:
+        self.write(
+            self.root / "conflicting-route.jsonl",
+            [
+                self.metadata(self.now, "conflicting-route-root"),
+                {
+                    "timestamp": self.stamp(self.now),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "spawn_agent",
+                        "call_id": "conflicting-route-call",
+                        "arguments": json.dumps(
+                            {
+                                "agent_type": "luna_worker",
+                                "task_name": "route__tdd__implementation__money_contract",
+                                "message": "Route: tdd/tests\nObjective: conflict",
+                            }
+                        ),
+                        "turn_id": "conflicting-route-turn",
+                    },
+                },
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["route_units_reported"])
+        self.assertEqual(1, audit["route_units_matched"])
+        self.assertEqual(1, audit["worker_route_reports_invalid"])
+
     def test_worker_route_mismatch_and_non_delegated_report(self) -> None:
         mismatch_root, terra_id = "mismatch-root", "mismatch-terra"
         self.write(

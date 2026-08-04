@@ -186,6 +186,7 @@ class HarnessSetupCliTests(unittest.TestCase):
             self.assertIn("spawn_agent", normalized)
             self.assertIn("agent_type", normalized)
             self.assertIn("generic default", normalized)
+            self.assertIn("route__<skill>__<phase>__<purpose>", normalized)
 
         self.assertIn("spawn_agent.agent_type", workflow)
         self.assertIn("combined sum", workflow)
