@@ -22,8 +22,12 @@ Codex configuration into Git.
   `fork_turns = "1"` and carry the complete seven-field task in the parent context immediately before the call.
 - Worker coverage includes every bounded, independently verifiable execution or evidence-gathering unit,
   including single-target repository, page, source, or question inspection even when no files are modified.
-- Worker write paths stay exclusively owned until the main agent records release. An ordinary quality defect
-  uses one same-Worker `followup_task` marked `Correction: 1/1`; unrelated work gets a new spawn.
+- Every dispatch puts an itemized required-evidence checklist in `Verification`, and the Worker maps
+  `Verified` and `Gaps` back to it. Missing required items use one gap-only same-Worker `followup_task`
+  marked `Correction: 1/1`; the main agent does not duplicate that work while correction is active.
+- After `followup_task`, the main agent snapshots Worker status before waiting and never repeats
+  `wait_agent` after a timeout without another status snapshot. Worker write paths stay exclusively owned
+  until release; unrelated work gets a new spawn.
   A root task reports adopted, partially adopted, rejected, and failed Flash work-unit counts so Harness
   Doctor can audit actual result use and route compliance.
 - The tracked Flash agent sets `[agents] enabled = false` so Workers are mechanically unable to spawn

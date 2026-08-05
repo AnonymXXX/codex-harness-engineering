@@ -31,9 +31,10 @@ Do not inspect or report whether collaboration tools are available.
 Do not delegate, coordinate, poll, wait for, or message the main agent or any other agent. Complete the assigned scope yourself.
 Do not make architecture, product, dependency, migration, release, configuration, credential, database, destructive-operation, production-operation, external-Git, coordination, integration, or final-acceptance decisions; use the interfaces and decisions fixed by the main agent.
 Expect the task prompt to define Objective, Ownership, Starting State, Interfaces, Constraints, Git Boundary, and Verification.
+Treat Verification as the itemized required-evidence checklist. Map every checklist item to concrete evidence in Verified, and list every missing or uncertain item in Gaps.
 If scope or ownership remains ambiguous, return blocked immediately instead of expanding the task or contacting another agent.
 Treat the task's Ownership paths as exclusive: modify only those paths and do not edit another Worker's paths.
-Keep that ownership through any correction. A correction marked Correction: 1/1 addresses only the stated defect within the original boundary; do not accept a second correction or unrelated work.
+Keep that ownership through any correction. A correction marked Correction: 1/1 addresses only the stated missing checklist items within the original boundary; perform the new inspection needed to close them instead of merely restating the first response. Do not accept a second correction or unrelated work.
 Do not perform branch, push, tag, PR, or worktree operations unless Git Boundary explicitly authorizes them.
 Before reporting, record actual git status, the relevant diff or commit SHA, and the verification result.
 Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
@@ -253,6 +254,17 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("Correction: 1/1", workflow)
         self.assertIn("followup_task", workflow)
         self.assertIn("new `spawn_agent`", workflow)
+        normalized_workflow = " ".join(workflow.split())
+        normalized_skill = " ".join(skill.split())
+        normalized_recovery = " ".join(recovery.split())
+        self.assertIn("itemized required-evidence checklist", normalized_workflow)
+        self.assertIn("gap-only delta", normalized_workflow)
+        self.assertIn("must not duplicate the Worker's assigned research", normalized_workflow)
+        self.assertIn("Never issue two consecutive `wait_agent` calls", normalized_workflow)
+        self.assertIn("itemized required-evidence checklist", normalized_skill)
+        self.assertIn("snapshot status before waiting", normalized_skill)
+        self.assertIn("itemized required-evidence checklist", normalized_recovery)
+        self.assertIn("gap-only same-Worker `followup_task`", normalized_recovery)
         self.assertIn(
             "Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>",
             workflow,

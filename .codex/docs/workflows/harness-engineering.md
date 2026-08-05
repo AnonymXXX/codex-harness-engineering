@@ -69,6 +69,12 @@ headings, even when a field is `N/A`:
   forbidden unless explicitly authorized; and
 - `Verification`: exact commands or objective inspection criteria.
 
+Before dispatch, the main agent turns the requested result into an itemized required-evidence checklist
+inside `Verification`. Each item names the exact target or question, the acceptable source, artifact, or
+command output, and what makes that item complete. Vague instructions such as "research the repository"
+or "check the relevant files" are not independently acceptable. The checklist must be specific enough
+that review can identify a missing item without reopening the full task.
+
 For a write unit, the absolute worktree path in `Ownership` identifies the execution root; exclusivity
 applies only to the explicitly allowed write paths and named mutable state within that root. `Starting
 State` and `Git Boundary` are required rather than inferred; a read-only unit uses `N/A` where a field
@@ -95,8 +101,9 @@ task. Every worker response uses these headings:
 - `Gaps`.
 
 For a read-only unit, `Changes` records the evidence produced and explicitly states that no files were
-changed. The response contract makes review predictable; it does not transfer integration or decision
-ownership away from the main agent.
+changed. `Verified` maps results and source links, file paths, or command outputs to every required-evidence
+checklist item; `Gaps` names every item that remains missing or uncertain. The response contract makes
+review predictable; it does not transfer integration or decision ownership away from the main agent.
 
 ### Ownership lifecycle and correction
 
@@ -123,11 +130,24 @@ paths, but must not edit an owned path. Parallel Workers must have disjoint writ
 records release before taking over an owned path; after takeover, the original Worker cannot write that
 path again unless a new work unit establishes a fresh boundary.
 
-An ordinary quality defect is corrected through the same Worker's `followup_task`, and the correction
-request must contain exactly `Correction: 1/1`, the specific defect, the permitted delta, and the
-verification to rerun. Each work unit gets at most one correction. If the correction still fails, the
-main agent classifies the result as `partial`, `rejected`, or `failed`, then takes over or stops. An
-unrelated new work unit always uses a new `spawn_agent`; it must not reuse the same Worker thread.
+During review, the main agent compares the response against the required-evidence checklist and records a
+gap-only delta. When a required, safely delegable item is missing, the main agent must send that delta to
+the same Worker through `followup_task` before performing overlapping evidence-gathering itself. The
+correction request contains exactly `Correction: 1/1`, the missing checklist items, the permitted delta,
+the required source or tool output, and the verification to rerun. The Worker performs any new inspection
+needed to close those items; merely restating or reformatting the first response is not a correction.
+
+While a correction is running, the main agent may review existing evidence or work on disjoint units, but
+must not duplicate the Worker's assigned research or implementation. After `followup_task`, check the
+Worker's current state with `list_agents` before waiting. If it is still running, issue at most one bounded
+`wait_agent`, then check `list_agents` again after a timeout. Never issue two consecutive `wait_agent`
+calls without an intervening status snapshot.
+
+Each work unit gets at most one same-Worker correction. If the correction still fails, classify and release
+that unit. When the remaining evidence is still required and safely delegable, define the unresolved items
+as a new narrow Worker unit; the main agent may take over only when delegation is excluded, unavailable, or
+unverifiable, or when the user redirects the work. It must not silently repeat the original full research.
+An unrelated new work unit always uses a new `spawn_agent`; it must not reuse the same Worker thread.
 
 Only the main agent may interrupt a Worker, and only for one of these reasons:
 
