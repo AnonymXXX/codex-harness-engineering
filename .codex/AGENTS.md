@@ -27,6 +27,15 @@ Keep user-managed skills under `~/.agents/skills`; reserve `~/.codex/skills` for
 
 For UI, frontend, styling, or visual-design work, read project-root `DESIGN.md` first when present. Otherwise infer the baseline from existing pages, components, and styles; do not invent a new visual language unless requested. When asked to create `DESIGN.md`, adapt `~/.codex/templates/DESIGN.md` to the existing UI first. Prefer established component conventions over a conflicting `DESIGN.md` and report the conflict.
 
+## Implementation Principles
+
+- Choose the simplest implementation that fully meets the confirmed requirements. Avoid speculative abstractions, configuration, and indirection.
+- Keep the system working end to end and add capabilities in small, independently verifiable increments.
+- Keep modules cohesive, ownership clear, and interfaces narrow. Add an abstraction only when it removes demonstrated complexity or follows an established project pattern.
+- Reuse existing project dependencies and capabilities before adding packages or custom implementations. Check their documentation and types first.
+- When all relevant callers, persisted data, configuration, and deployment dependencies have been verified, delete obsolete paths directly. Do not add compatibility layers, compatibility-only migrations, or fallbacks to preserve obsolete behavior. If confidence is insufficient, identify and verify the unknown dependencies first.
+- Prefer durable implementations. Allow a bounded interim solution only when uncertainty or disproportionate delivery cost justifies it, and keep its boundary, risk, validation, and removal condition explicit.
+
 ## Risk-Based Execution
 
 Classify risk before editing. Use the lightweight flow for clearly small, isolated work; follow `~/.codex/docs/workflows/git-worktree.md` for medium/large changes, shared behavior, configuration, generated artifacts, deployment, data, security, permissions, production operations, dirty state, or unclear blast radius. File count is a signal, not a fixed threshold.
