@@ -82,12 +82,6 @@ prefix: `route__<skill>__<phase>__<purpose>`. Convert hyphens in the route to un
 Doctor treats the message line as canonical when readable and otherwise resolves this prefix against the
 installed route registry; a disagreement between the two forms is invalid.
 
-Cross-provider dispatch to `deepseek_v4_flash_worker` must carry the task twice: the `spawn_agent` task
-message contains the exact seven-field contract, and the same complete seven-field task is written into
-the parent context immediately preceding the call. The spawn must use `fork_turns = "1"`; a
-`fork_turns = "none"` spawn does not reliably deliver the task to a worker running through a different
-provider, and a full-history fork (`fork_turns = "all"`) is never allowed.
-
 A worker whose scope or ownership remains ambiguous returns `Status: blocked` instead of expanding the
 task. Every worker response uses these headings:
 
@@ -169,11 +163,11 @@ Parallel units must have disjoint write paths, mutable state/resources, and vali
 generated outputs, fixtures, databases, ports, services, credentials, or validation commands count as
 overlap; serialize the units when disjointness cannot be demonstrated before dispatch.
 
-Cross-provider dispatch to `deepseek_v4_flash_worker` must use `fork_turns = "1"` and must not rely on
-the spawn message alone: write the complete seven-field task into the parent context immediately
-preceding the `spawn_agent` call. Never use `fork_turns = "none"` for a routed Flash unit, because the
-task is not delivered reliably across providers. Never use a full-history fork or `fork_turns = "all"`;
-worker prompts must remain self-contained and bounded.
+Cross-provider dispatch to `deepseek_v4_flash_worker` must carry the task twice: put the exact seven-field
+contract in the `spawn_agent` task message and write the same complete task into the parent context
+immediately preceding the call. Use `fork_turns = "1"`. Never use `fork_turns = "none"` for a routed
+Flash unit, because it does not deliver the task reliably across providers. Never use a full-history fork
+or `fork_turns = "all"`; worker prompts must remain self-contained and bounded.
 
 ### Scope and exclusions
 

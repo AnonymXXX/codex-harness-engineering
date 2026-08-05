@@ -285,8 +285,10 @@ class HarnessSetupCliTests(unittest.TestCase):
             normalized = " ".join(content.split())
             self.assertIn('fork_turns = "1"', normalized)
             self.assertIn("parent context", normalized)
+        self.assertIn("must carry the task twice", " ".join(workflow.split()))
         self.assertIn('fork_turns = "none"', " ".join(workflow.split()))
         self.assertIn('fork_turns = "all"', " ".join(workflow.split()))
+        self.assertNotIn('Use `fork_turns = "none"` by default', workflow)
 
     def test_worker_protocol_v10_documents_root_scope_legacy_and_duration_advice(self) -> None:
         workflow = (
