@@ -19,7 +19,7 @@ metadata:
 
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's access phases.
 
-- Use `deepseek_v4_flash_worker` with `Route: web-access/research` for independent, read-only, multi-target research; workers return source evidence and do not perform mutations.
+- Use `deepseek_v4_flash_worker` with `Route: web-access/research` for every bounded, independently verifiable, read-only evidence-gathering unit. This includes a single repository, page, source, or question; use one Worker for a small single target rather than skipping delegation. Workers return source evidence and do not perform mutations.
 - Keep synthesis, source reconciliation, login/session actions, browser interactions that mutate state, and external writes with the main agent.
 
 ## 前置检查
@@ -210,7 +210,7 @@ curl -s "http://localhost:3456/close?target=ID"
 
 Proxy 持续运行，不建议主动停止——重启后需要在浏览器中重新授权 CDP 连接。
 
-## 并行调研：子 Agent 分治策略
+## 并行调研：多 Worker 分治策略
 
 任务包含多个**独立**调研目标时（如同时调研 N 个项目、N 个来源），鼓励合理分治给子 Agent 并行执行，而非主 Agent 串行处理。
 
@@ -224,12 +224,15 @@ Proxy 持续运行，不建议主动停止——重启后需要在浏览器中�
 - 必须在子 Agent prompt 中写 `必须加载 web-access skill 并遵循指引` ，子 Agent 会自动加载 skill，无需在 prompt 中复制 skill 内容或指定路径。
 - 子 Agent 有自主判断能力。主 Agent 的职责是说清楚**要什么**，仅在必要与确信时限定**怎么做**。过度指定步骤会剥夺子 Agent 的判断空间，反而引入主 Agent 的假设错误。**避免 prompt 用词对子 Agent 行为的暗示**：「搜索xx」会把子 Agent 锚定到 WebSearch，而实际上有些反爬站点需要 CDP 直接访问主站才能有效获取内容。主 Agent 写 prompt 时应描述目标（「获取」「调研」「了解」），避免用暗示具体手段的动词（「搜索」「抓取」「爬取」）。
 
-**分治判断标准：**
+本节只决定是否拆成多个 Worker，并不决定是否委派。单仓库、单页面、单来源或单问题仍按
+`Worker Routing` 至少交给一个 Worker；任务较小时不再继续拆分。
 
-| 适合分治 | 不适合分治 |
+**多 Worker 分治判断标准：**
+
+| 适合多个 Worker 并行 | 只使用一个 Worker |
 |----------|-----------|
 | 目标相互独立，结果互不依赖 | 目标有依赖关系，下一个需要上一个的结果 |
-| 每个子任务量足够大（多页抓取、多轮搜索） | 简单单页查询，分治开销大于收益 |
+| 每个子任务量足够大（多页抓取、多轮搜索） | 简单单页或单仓库查询 |
 | 需要 CDP 浏览器或长时间运行的任务 | 几次 WebSearch / Jina 就能完成的轻量查询 |
 
 ## 信息核实类任务

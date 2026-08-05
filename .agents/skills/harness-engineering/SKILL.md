@@ -32,7 +32,7 @@ Use the Standard Lane for cohesive local features and fixes that exceed the Fast
 
 ## Worker-first Coverage Gate
 
-- After risk classification, route every safely delegable engineering execution task through independent Worker work units, regardless of size.
+- After request and risk classification, route every safely delegable, bounded execution or evidence-gathering unit through an independent Worker, regardless of size, duration, or target count. Single-repository, single-page, single-source, and single-question inspection are included even when no files are modified.
 - Route bounded, independently verifiable execution to `deepseek_v4_flash_worker`. Common domain Skills own their stage-specific routes.
 - Every routed `spawn_agent` call must set `agent_type` explicitly to `deepseek_v4_flash_worker` and use the workflow's auditable `route__<skill>__<phase>__<purpose>` task name; never use the generic default and label it afterward.
 - Cross-provider dispatch to `deepseek_v4_flash_worker` uses `fork_turns = "1"` and writes the complete seven-field task into the parent context immediately before the `spawn_agent` call; `fork_turns = "none"` does not deliver the task reliably across providers.

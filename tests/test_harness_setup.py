@@ -305,6 +305,34 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("parent-only coordination instructions", workflow)
         self.assertIn("parent-only coordination", recovery)
 
+    def test_worker_routing_covers_single_target_read_only_evidence(self) -> None:
+        workflow = (
+            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
+        ).read_text(encoding="utf-8")
+        global_agents = (ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
+        harness_skill = (
+            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        web_access = (
+            ROOT / ".agents" / "skills" / "web-access" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
+
+        for content in (workflow, global_agents, harness_skill, recovery):
+            normalized = " ".join(content.split())
+            self.assertIn("evidence-gathering", normalized)
+            self.assertIn("single", normalized)
+        self.assertIn("single repository, page, source, or question", workflow)
+        self.assertIn("even when no files are modified", workflow)
+        self.assertIn("single-target repository, page, source, and question", global_agents)
+        self.assertIn("单仓库、单页面、单来源或单问题", web_access)
+        self.assertIn("至少交给一个 Worker", web_access)
+        self.assertIn("简单单页或单仓库查询", web_access)
+        self.assertNotIn("multi-target research", web_access)
+        self.assertNotIn("简单单页查询，分治开销大于收益", web_access)
+        self.assertNotIn("safely delegable engineering execution", workflow)
+        self.assertNotIn("safely delegable engineering execution", global_agents)
+
     def test_worker_protocol_v10_documents_root_scope_legacy_and_duration_advice(self) -> None:
         workflow = (
             ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"

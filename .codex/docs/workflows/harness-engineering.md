@@ -24,11 +24,13 @@ File count is a signal, not a hard boundary. A one-file security change is Heavy
 
 ## Worker-first Delegation
 
-Worker scheduling is a coverage gate after risk classification, not an optional optimization. For every
-engineering task, the main agent must classify the risk lane and route each safely delegable, bounded,
-independently verifiable execution unit to a direct Worker before doing that work itself, regardless of
-task size or expected duration. Direct main-agent execution is limited to the exclusions below or work
-that cannot be made into an objectively verifiable Worker unit.
+Worker scheduling is a coverage gate after request and risk classification, not an optional optimization.
+For every user task, the main agent must route each safely delegable, bounded, independently verifiable
+execution or evidence-gathering unit to a direct Worker before doing that work itself, regardless of task
+size, expected duration, or number of targets. This includes a single repository, page, source, or question
+and applies even when no files are modified. Direct main-agent execution is limited to immediate answers
+that need no evidence-gathering or tool work, the exclusions below, or work that cannot be made into an
+objectively verifiable Worker unit.
 
 Use `deepseek_v4_flash_worker` for clear, bounded, independently verifiable units such as inventory,
 contract tracing, test authoring or execution, read-only research, focused validation, isolated local
@@ -45,6 +47,7 @@ or focused result inspection. The scan must consider, where applicable:
 - API, schema, field, and other contract tracing;
 - focused test authoring or test execution with isolated fixtures and outputs;
 - read-only research, documentation inspection, and compatibility evidence gathering;
+- single-target repository, page, source, or question inspection;
 - a local implementation in an exclusively owned path or module; and
 - independent verification of a result, diff, invariant, or focused check.
 
@@ -248,8 +251,8 @@ Count work units, including queued units run by reusing an existing Worker threa
 reconstruct the role from its task, model, name, or result. Flash's four values cover every terminal unit
 accepted for that Worker, and their sum must equal the number of terminal named-Worker units. A failed spawn
 that never creates a thread is an operational caveat, not a work unit. If a completed root turn contains
-safely delegable engineering execution but uses no Worker, append exactly one
-line with the applicable reason:
+safely delegable execution or evidence-gathering work but uses no Worker, append exactly one line with the
+applicable reason:
 
 ```text
 Worker 路由：not_delegated reason=excluded|overlap|unavailable|unverifiable
