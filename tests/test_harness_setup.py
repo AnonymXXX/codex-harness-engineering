@@ -40,6 +40,9 @@ model_provider = "deepseek"
 model = "deepseek-v4-flash"
 model_reasoning_effort = "max"
 
+[agents]
+enabled = false
+
 [model_providers.deepseek]
 name = "DeepSeek"
 base_url = "https://api.deepseek.com"
@@ -152,6 +155,7 @@ class HarnessSetupCliTests(unittest.TestCase):
                 self.assertEqual(model, parsed["model"])
                 self.assertEqual("deepseek", parsed["model_provider"])
                 self.assertEqual("max", parsed["model_reasoning_effort"])
+                self.assertIs(parsed["agents"]["enabled"], False)
                 self.assertEqual("DeepSeek", parsed["model_providers"]["deepseek"]["name"])
                 self.assertEqual("https://api.deepseek.com", parsed["model_providers"]["deepseek"]["base_url"])
                 self.assertEqual("responses", parsed["model_providers"]["deepseek"]["wire_api"])
@@ -289,6 +293,9 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn('fork_turns = "none"', " ".join(workflow.split()))
         self.assertIn('fork_turns = "all"', " ".join(workflow.split()))
         self.assertNotIn('Use `fork_turns = "none"` by default', workflow)
+        self.assertIn("[agents] enabled = false", " ".join(workflow.split()))
+        self.assertIn("[agents] enabled = false", " ".join(recovery.split()))
+        self.assertIn("never applies recursively to a Worker", global_agents)
 
     def test_worker_protocol_v10_documents_root_scope_legacy_and_duration_advice(self) -> None:
         workflow = (

@@ -146,6 +146,8 @@ Workers are strict leaves. They must not call collaboration tools such as `spawn
 wait for, message, or coordinate the main agent or another agent. When blocked, a Worker returns its
 terminal `Status: blocked` report immediately. When its unit is complete or has failed, it returns the
 corresponding terminal report immediately instead of waiting for other work or coordination.
+The tracked `deepseek_v4_flash_worker` config enforces this boundary with `[agents] enabled = false`;
+do not rely on prompt compliance alone to keep a Worker from spawning another agent.
 
 ### Scheduling and parallelism
 

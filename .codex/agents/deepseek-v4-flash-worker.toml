@@ -21,6 +21,9 @@ model_provider = "deepseek"
 model = "deepseek-v4-flash"
 model_reasoning_effort = "max"
 
+[agents]
+enabled = false
+
 [model_providers.deepseek]
 name = "DeepSeek"
 base_url = "https://api.deepseek.com"
