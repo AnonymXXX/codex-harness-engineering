@@ -32,6 +32,13 @@ and applies even when no files are modified. Direct main-agent execution is limi
 that need no evidence-gathering or tool work, the exclusions below, or work that cannot be made into an
 objectively verifiable Worker unit.
 
+For a clear single-target read-only evidence task, the main agent has a prerequisite-only phase before
+dispatch: read explicitly triggered Skills, classify risk, and write the seven-field contract with its
+required-evidence checklist. During that phase it must not inspect the target, discover domain tools, call
+the network, or announce that it will perform the primary research itself. The Worker is the primary
+evidence owner; the main agent owns acceptance and synthesis and must not describe it as cross-validation.
+Once those prerequisites are complete, the next domain action is `spawn_agent`.
+
 Use `deepseek_v4_flash_worker` for clear, bounded, independently verifiable units such as inventory,
 contract tracing, test authoring or execution, read-only research, focused validation, isolated local
 changes, and bounded Heavy Lane implementation. The main agent resolves architecture, product,
@@ -143,11 +150,20 @@ Worker's current state with `list_agents` before waiting. If it is still running
 `wait_agent`, then check `list_agents` again after a timeout. Never issue two consecutive `wait_agent`
 calls without an intervening status snapshot.
 
+For a clear single-target read-only unit or its correction, each `wait_agent` uses `timeout_ms` no greater
+than `10000`, with a cumulative wait budget of 30 seconds between useful progress or evidence updates.
+After every timeout, take another `list_agents` snapshot and stop waiting as soon as the Worker is terminal.
+A fast research unit must not use a 120-second wait. Longer units may use a larger task-specific timeout
+only when their expected duration was established before dispatch.
+
 Each work unit gets at most one same-Worker correction. If the correction still fails, classify and release
 that unit. When the remaining evidence is still required and safely delegable, define the unresolved items
 as a new narrow Worker unit; the main agent may take over only when delegation is excluded, unavailable, or
 unverifiable, or when the user redirects the work. It must not silently repeat the original full research.
-An unrelated new work unit always uses a new `spawn_agent`; it must not reuse the same Worker thread.
+Every newly spawned follow-on unit receives its own correction budget, independent of corrections used by
+earlier units. If that follow-on result has recoverable checklist gaps, use its own `Correction: 1/1` before
+main-agent takeover. An unrelated new work unit always uses a new `spawn_agent`; it must not reuse the same
+Worker thread.
 
 Only the main agent may interrupt a Worker, and only for one of these reasons:
 
@@ -243,7 +259,10 @@ Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>
 
 For this marker, `started` counts associated followup turns that started, `violations` counts associated
 followup turns that violated the single-correction reuse rule, and the associated followup-turn count is
-`started + violations`. The terminal accounting invariant is `completed + failed = started`.
+`started + violations`. The terminal accounting invariant is `completed + failed = started`. `completed`
+counts a followup turn whose runtime status is `completed`, even when its evidence is later classified as
+partial or rejected; `failed` is reserved for a turn-level failed terminal status. Acceptance quality is
+recorded only in the applicable `Flash 验收` outcome, not in correction execution accounting.
 Followup messages may be encrypted, so Doctor reconciles this unencrypted final marker instead of reading followup
 plaintext. Historical roots without the v10 marker remain informational and are not v10 protocol
 compliance failures. Doctor parses v9 Luna/Terra roots only as historical compatibility data.

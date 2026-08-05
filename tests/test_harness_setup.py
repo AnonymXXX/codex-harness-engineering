@@ -32,6 +32,7 @@ Do not delegate, coordinate, poll, wait for, or message the main agent or any ot
 Do not make architecture, product, dependency, migration, release, configuration, credential, database, destructive-operation, production-operation, external-Git, coordination, integration, or final-acceptance decisions; use the interfaces and decisions fixed by the main agent.
 Expect the task prompt to define Objective, Ownership, Starting State, Interfaces, Constraints, Git Boundary, and Verification.
 Treat Verification as the itemized required-evidence checklist. Map every checklist item to concrete evidence in Verified, and list every missing or uncertain item in Gaps.
+When Constraints require a Skill, read that Skill before any domain tool call and record the loaded path in Verified. If it cannot be read, return blocked instead of bypassing it.
 If scope or ownership remains ambiguous, return blocked immediately instead of expanding the task or contacting another agent.
 Treat the task's Ownership paths as exclusive: modify only those paths and do not edit another Worker's paths.
 Keep that ownership through any correction. A correction marked Correction: 1/1 addresses only the stated missing checklist items within the original boundary; perform the new inspection needed to close them instead of merely restating the first response. Do not accept a second correction or unrelated work.
@@ -292,6 +293,49 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertNotIn("companion lines remain optional", workflow)
         self.assertIn("Conditional reports remain required", recovery)
         self.assertNotIn("optional interruption and Flash acceptance lines", recovery)
+
+    def test_worker_first_fast_research_contract_bounds_main_work_and_waiting(self) -> None:
+        workflow = (
+            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
+        ).read_text(encoding="utf-8")
+        global_agents = (ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
+        harness_skill = (
+            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        web_access = (
+            ROOT / ".agents" / "skills" / "web-access" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        worker_config = (
+            ROOT / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
+        ).read_text(encoding="utf-8")
+        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
+
+        normalized_workflow = " ".join(workflow.split())
+        normalized_agents = " ".join(global_agents.split())
+        normalized_skill = " ".join(harness_skill.split())
+        normalized_web_access = " ".join(web_access.split())
+        normalized_worker_config = " ".join(worker_config.split())
+        normalized_recovery = " ".join(recovery.split())
+
+        self.assertIn("prerequisite-only phase", normalized_workflow)
+        self.assertIn("primary evidence owner", normalized_workflow)
+        self.assertIn("must not describe it as cross-validation", normalized_workflow)
+        self.assertIn("the next domain action is `spawn_agent`", normalized_workflow)
+        self.assertIn("no greater than `10000`", normalized_workflow)
+        self.assertIn("cumulative wait budget of 30 seconds", normalized_workflow)
+        self.assertIn("Every newly spawned follow-on unit receives its own correction budget", normalized_workflow)
+        self.assertIn("runtime status is `completed`", normalized_workflow)
+        self.assertIn("Acceptance quality is recorded only", normalized_workflow)
+
+        self.assertIn("prerequisite-only phase", normalized_agents)
+        self.assertIn("the next domain action is `spawn_agent`", normalized_agents)
+        self.assertIn("Do not reread the full Harness workflow", normalized_skill)
+        self.assertIn("primary evidence owner", normalized_skill)
+        self.assertIn("最长 10 秒", normalized_web_access)
+        self.assertIn("主要证据负责人", normalized_web_access)
+        self.assertIn("read that Skill before any domain tool call", normalized_worker_config)
+        self.assertIn("newly spawned follow-on unit", normalized_recovery)
+        self.assertIn("cumulative wait budget", normalized_recovery)
 
     def test_worker_cross_provider_fork_context_contract(self) -> None:
         workflow = (

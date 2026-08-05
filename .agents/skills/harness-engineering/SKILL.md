@@ -11,7 +11,7 @@ Use harness engineering as the governing workflow for safe, proportionate Codex 
 
 Classify the task from the request, project rules, repository state, and relevant code before loading detailed workflows.
 
-- For a clear Fast Lane task, use this skill and the project's `AGENTS.md`; do not read the full Harness or worktree workflow unless evidence requires escalation.
+- For a clear Fast Lane task, use this skill and the project's `AGENTS.md`; do not read the full Harness or worktree workflow unless evidence requires escalation. Do not reread the full Harness workflow after this Skill already supplies the active Fast Lane contract.
 - For Standard or Heavy Lane work, read and follow `~/.codex/docs/workflows/harness-engineering.md`.
 - For medium or large file-modifying work inside a Git repo, also read `~/.codex/docs/workflows/git-worktree.md`.
 
@@ -33,12 +33,14 @@ Use the Standard Lane for cohesive local features and fixes that exceed the Fast
 ## Worker-first Coverage Gate
 
 - After request and risk classification, route every safely delegable, bounded execution or evidence-gathering unit through an independent Worker, regardless of size, duration, or target count. Single-repository, single-page, single-source, and single-question inspection are included even when no files are modified.
+- For a clear single-target read-only task, keep the main agent in a prerequisite-only phase limited to required Skill loading, risk classification, and the dispatch contract. The Worker is the primary evidence owner; after prerequisites, the next domain action is `spawn_agent`, not main-agent target inspection or tool discovery.
 - Route bounded, independently verifiable execution to `deepseek_v4_flash_worker`. Common domain Skills own their stage-specific routes.
 - Every routed `spawn_agent` call must set `agent_type` explicitly to `deepseek_v4_flash_worker` and use the workflow's auditable `route__<skill>__<phase>__<purpose>` task name; never use the generic default and label it afterward.
 - Cross-provider dispatch to `deepseek_v4_flash_worker` uses `fork_turns = "1"` and writes the complete seven-field task into the parent context immediately before the `spawn_agent` call; `fork_turns = "none"` does not deliver the task reliably across providers.
 - Put an itemized required-evidence checklist in `Verification`: name exactly what the Worker must inspect, the acceptable source or output for each item, and what counts as complete. Require `Verified` and `Gaps` to map back to that checklist.
 - Keep each Worker write path exclusively owned until explicit release; use one same-Worker correction marked `Correction: 1/1`, and start unrelated work with a new spawn. The detailed lifecycle and interruption protocol lives in the linked workflow.
 - When review finds missing required evidence, send only those gaps back to the same Worker before doing overlapping work in the main agent. After `followup_task`, snapshot status before waiting; never repeat `wait_agent` after a timeout without another status snapshot.
+- For single-target read-only work and its correction, cap each `wait_agent.timeout_ms` at `10000` and cumulative waiting without useful progress at 30 seconds. Every newly spawned follow-on unit has its own one-correction budget.
 - Use at most 8 direct Worker threads per root session. Workers are leaves and must not spawn, delegate, coordinate, or nest subagents.
 - Every completed root turn that used a named Worker ends with `Worker 协议：version=10`; a same-Worker correction or invalid reuse also ends with `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`. Followup messages may be encrypted, so Doctor reconciles the unencrypted final marker; roots without v10 remain historical/informational.
 - Preserve the existing conditional reports: a direct Worker interruption emits the exact `Worker 中断：...` line once; a root using `deepseek_v4_flash_worker` emits exactly one `Flash 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>` line.

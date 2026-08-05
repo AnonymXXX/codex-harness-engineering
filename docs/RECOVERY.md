@@ -28,6 +28,9 @@ Codex configuration into Git.
 - After `followup_task`, the main agent snapshots Worker status before waiting and never repeats
   `wait_agent` after a timeout without another status snapshot. Worker write paths stay exclusively owned
   until release; unrelated work gets a new spawn.
+- For single-target read-only work, the main agent completes only the prerequisite phase and then dispatches
+  the Worker as primary evidence owner. Each wait is capped at 10 seconds with a cumulative wait budget of
+  30 seconds without useful progress. Every newly spawned follow-on unit receives its own correction budget.
   A root task reports adopted, partially adopted, rejected, and failed Flash work-unit counts so Harness
   Doctor can audit actual result use and route compliance.
 - The tracked Flash agent sets `[agents] enabled = false` so Workers are mechanically unable to spawn
@@ -36,7 +39,9 @@ Codex configuration into Git.
   `Route:` plus seven-field Worker contract directly.
 - Every completed root turn that used a named Worker appends the exact final marker `Worker 协议：version=10`.
   A same-Worker correction or invalid reuse also appends `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`;
-  `started + violations` counts associated followup turns and `completed + failed = started`. Followup messages may be encrypted,
+  `started + violations` counts associated followup turns and `completed + failed = started`. A runtime-completed
+  correction increments `completed` even when later partially accepted or rejected; acceptance quality stays
+  in `Flash 验收`. Followup messages may be encrypted,
   so Doctor reconciles the unencrypted final marker. Roots without v10 remain
   historical/informational.
 - A root using `deepseek_v4_flash_worker` emits exactly one `Flash 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>`

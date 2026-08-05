@@ -20,6 +20,8 @@ metadata:
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's access phases.
 
 - Use `deepseek_v4_flash_worker` with `Route: web-access/research` for every bounded, independently verifiable, read-only evidence-gathering unit. This includes a single repository, page, source, or question; use one Worker for a small single target rather than skipping delegation. Workers return source evidence and do not perform mutations.
+- 对清晰的单目标只读查询，Worker 是主要证据负责人，不是主代理调研后的交叉验证者。主代理在加载本 Skill、完成风险分类和证据清单后立即派发；在 Worker 返回缺口前，不运行 `check-deps.mjs`、不发现联网工具、也不访问目标页面。
+- 这类快速查询及其纠正每次 `wait_agent` 最长 10 秒；每次超时后先检查状态，无有效进展时累计等待最多 30 秒，禁止 120 秒等待。
 - Keep synthesis, source reconciliation, login/session actions, browser interactions that mutate state, and external writes with the main agent.
 
 ## 前置检查
