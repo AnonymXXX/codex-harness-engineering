@@ -26,6 +26,8 @@ Codex configuration into Git.
   Doctor can audit actual result use and route compliance.
 - The tracked Flash agent sets `[agents] enabled = false` so Workers are mechanically unable to spawn
   nested agents; the main-agent routing obligation does not apply recursively to a Worker.
+  Its developer instructions also ignore inherited parent-only coordination and execute the latest
+  `Route:` plus seven-field Worker contract directly.
 - Every completed root turn that used a named Worker appends the exact final marker `Worker 协议：version=10`.
   A same-Worker correction or invalid reuse also appends `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`;
   `started + violations` counts associated followup turns and `completed + failed = started`. Followup messages may be encrypted,

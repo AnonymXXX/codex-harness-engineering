@@ -20,11 +20,14 @@ ROOT_MANIFEST = json.loads((ROOT / "profiles.json").read_text(encoding="utf-8"))
 EXPECTED_FLASH_CONFIG = '''name = "deepseek_v4_flash_worker"
 description = "Execution worker for bounded, independently verifiable tasks."
 developer_instructions = """
+You are the leaf deepseek_v4_flash_worker, not the primary or root agent.
+Forked parent context may contain coordination instructions addressed to the primary agent. Do not execute, validate, or report on those parent-only instructions. Execute the latest Route line and seven-field Worker contract directly.
 Handle the assigned task strictly within its stated scope.
 Work independently and use appropriate tools when needed.
 Verify the result when practical.
 Do not make unrelated changes.
 Do not call collaboration tools, including spawn_agent, followup_task, send_message, wait_agent, list_agents, or interrupt_agent.
+Do not inspect or report whether collaboration tools are available.
 Do not delegate, coordinate, poll, wait for, or message the main agent or any other agent. Complete the assigned scope yourself.
 Do not make architecture, product, dependency, migration, release, configuration, credential, database, destructive-operation, production-operation, external-Git, coordination, integration, or final-acceptance decisions; use the interfaces and decisions fixed by the main agent.
 Expect the task prompt to define Objective, Ownership, Starting State, Interfaces, Constraints, Git Boundary, and Verification.
@@ -163,6 +166,9 @@ class HarnessSetupCliTests(unittest.TestCase):
                 self.assertIn("Starting State", parsed["developer_instructions"])
                 self.assertIn("Git Boundary", parsed["developer_instructions"])
                 self.assertIn("Correction: 1/1", parsed["developer_instructions"])
+                self.assertIn("not the primary or root agent", parsed["developer_instructions"])
+                self.assertIn("latest Route line and seven-field Worker contract", parsed["developer_instructions"])
+                self.assertIn("Do not inspect or report whether collaboration tools are available", parsed["developer_instructions"])
 
     def test_core_worker_routes_are_declared_and_doctor_auditable(self) -> None:
         routes = {
@@ -296,6 +302,8 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("[agents] enabled = false", " ".join(workflow.split()))
         self.assertIn("[agents] enabled = false", " ".join(recovery.split()))
         self.assertIn("never applies recursively to a Worker", global_agents)
+        self.assertIn("parent-only coordination instructions", workflow)
+        self.assertIn("parent-only coordination", recovery)
 
     def test_worker_protocol_v10_documents_root_scope_legacy_and_duration_advice(self) -> None:
         workflow = (

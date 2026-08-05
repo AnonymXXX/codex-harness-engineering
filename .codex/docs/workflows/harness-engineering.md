@@ -170,6 +170,9 @@ contract in the `spawn_agent` task message and write the same complete task into
 immediately preceding the call. Use `fork_turns = "1"`. Never use `fork_turns = "none"` for a routed
 Flash unit, because it does not deliver the task reliably across providers. Never use a full-history fork
 or `fork_turns = "all"`; worker prompts must remain self-contained and bounded.
+Because the forked turn may also contain parent-only coordination instructions, the tracked Worker
+developer instructions identify the leaf role explicitly and require direct execution of the latest
+`Route:` plus seven-field contract without inspecting collaboration-tool availability.
 
 ### Scope and exclusions
 
