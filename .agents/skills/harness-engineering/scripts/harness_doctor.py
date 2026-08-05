@@ -1950,6 +1950,9 @@ def audit_sessions(
                     ):
                         continue
                     event_time = _audit_event_time(event, modified)
+                    observed_time = (
+                        _audit_value_datetime(event.get("timestamp")) or event_time
+                    )
                     meta = _audit_session_meta(event)
                     if meta and not file_session_ids.get(str(path)):
                         file_session_ids[str(path)] = (
@@ -1965,6 +1968,7 @@ def audit_sessions(
                             "path": str(path),
                             "line": line_number,
                             "time": event_time,
+                            "observed_time": observed_time,
                             "in_window": event_time >= cutoff,
                         }
                     )
@@ -2446,6 +2450,7 @@ def audit_sessions(
                 "session_key": session_key,
                 "turn_id": turn_id,
                 "started_at": None,
+                "observed_started_at": None,
                 "completed": False,
                 "interrupted": False,
             },
@@ -2454,6 +2459,12 @@ def audit_sessions(
             started_at = turn["started_at"]
             if started_at is None or record["time"] < started_at:
                 turn["started_at"] = record["time"]
+            observed_started_at = turn["observed_started_at"]
+            if (
+                observed_started_at is None
+                or record["observed_time"] < observed_started_at
+            ):
+                turn["observed_started_at"] = record["observed_time"]
         elif record["kind"] == "task_complete":
             turn["completed"] = True
         else:
@@ -2508,12 +2519,15 @@ def audit_sessions(
         for turn_key, turn in turns.items():
             turns_by_session.setdefault(turn["session_key"], []).append((turn_key, turn))
 
+    def turn_association_time(turn: dict[str, Any]) -> datetime:
+        return turn.get("observed_started_at") or turn["started_at"]
+
     correction_turn_keys: set[str] = set()
     reused_threads: set[str] = set()
     for session_key, followups in followups_by_worker.items():
         candidate_turns = sorted(
             turns_by_session.get(session_key, []),
-            key=lambda item: (item[1]["started_at"], item[0]),
+            key=lambda item: (turn_association_time(item[1]), item[0]),
         )
         assigned_turns: set[str] = set()
         correction_seen = False
@@ -2523,7 +2537,7 @@ def audit_sessions(
                     item
                     for item in candidate_turns
                     if item[0] not in assigned_turns
-                    and item[1]["started_at"] >= followup["time"]
+                    and turn_association_time(item[1]) >= followup["time"]
                 ),
                 None,
             )
@@ -2801,7 +2815,7 @@ def audit_sessions(
         assigned = assigned_followup_turns.setdefault(worker_session, set())
         candidates = sorted(
             turns_by_session.get(worker_session, []),
-            key=lambda item: (item[1]["started_at"], item[0]),
+            key=lambda item: (turn_association_time(item[1]), item[0]),
         )
         activity_turn = _audit_turn_id({"payload": activity["payload"]})
         candidate = next(
@@ -2818,7 +2832,7 @@ def audit_sessions(
                     item
                     for item in candidates
                     if item[0] not in assigned
-                    and item[1]["started_at"] >= followup["time"]
+                    and turn_association_time(item[1]) >= followup["time"]
                 ),
                 None,
             )

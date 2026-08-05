@@ -645,6 +645,7 @@ class SessionAuditTests(unittest.TestCase):
         protocol_line: str | None = "Worker 协议：version=9",
         reused_outcomes: list[str] | None = None,
         interruption_line: str | None = None,
+        reused_start_after_followup_ms: int | None = None,
     ) -> tuple[str, str]:
         root_id, luna_id = f"{name}-root", f"{name}-luna"
         root_turn = f"{name}-root-turn"
@@ -746,13 +747,25 @@ class SessionAuditTests(unittest.TestCase):
         ]
         for index in range(followup_count):
             offset = 4 + index * 2
+            started_at = self.now + timedelta(seconds=offset)
+            if reused_start_after_followup_ms is not None:
+                started_at = self.now + timedelta(
+                    seconds=3 + index * 2,
+                    milliseconds=reused_start_after_followup_ms,
+                )
             outcome = (reused_outcomes or ["completed"] * followup_count)[index]
+            started_payload: dict[str, str | int] = {
+                "type": "task_started",
+                "turn_id": f"{name}-reused-{index}",
+            }
+            if reused_start_after_followup_ms is not None:
+                started_payload["started_at"] = int(started_at.timestamp())
             luna_rows.extend(
                 [
                     self.event(
-                        self.now + timedelta(seconds=offset),
+                        started_at,
                         "event_msg",
-                        {"type": "task_started", "turn_id": f"{name}-reused-{index}"},
+                        started_payload,
                     ),
                     self.event(
                         self.now + timedelta(seconds=offset + 1),
@@ -2511,6 +2524,26 @@ class SessionAuditTests(unittest.TestCase):
             {"worker-session-policy-ok"},
             {item["code"] for item in doctor.check_worker_session_policy(audit)},
         )
+
+    def test_v9_correction_uses_precise_event_time_when_started_at_is_truncated(
+        self,
+    ) -> None:
+        self.now = self.now.replace(microsecond=100_000)
+        self.write_v9_reuse_case(
+            name="v9-real-timestamp-precision",
+            followup_count=1,
+            correction_line=(
+                "Worker 纠错：started=1 completed=1 failed=0 violations=0"
+            ),
+            reused_start_after_followup_ms=22,
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["worker_correction_reports_valid"])
+        self.assertEqual(0, audit["worker_correction_reports_invalid"])
+        self.assertEqual(1, audit["worker_correction_turns_started"])
+        self.assertEqual(1, audit["worker_correction_turns_completed"])
 
     def test_v9_failed_encrypted_correction_reconciles(self) -> None:
         root_id, terra_id = "v9-failed-root", "v9-failed-terra"
