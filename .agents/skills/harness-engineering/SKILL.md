@@ -36,7 +36,10 @@ Use the Standard Lane for cohesive local features and fixes that exceed the Fast
 - Prefer `luna_worker` for bounded routine work and `terra_worker` for bounded Heavy Lane implementation. Common domain Skills own their stage-specific routes.
 - Every routed `spawn_agent` call must set `agent_type` explicitly to the selected `luna_worker` or `terra_worker` and use the workflow's auditable `route__<skill>__<phase>__<purpose>` task name; never use the generic default and label it afterward.
 - Keep each Worker write path exclusively owned until explicit release; use one same-Worker correction marked `Correction: 1/1`, and start unrelated work with a new spawn. The detailed lifecycle and interruption protocol lives in the linked workflow.
-- Use at most 8 direct Worker threads, including at most 5 Luna threads. Workers are leaves and must not spawn, delegate, coordinate, or nest subagents.
+- Use at most 8 direct Worker threads per root session, including at most 5 Luna threads. Workers are leaves and must not spawn, delegate, coordinate, or nest subagents.
+- Every completed root turn that used a named Worker ends with `Worker 协议：version=9`; a same-Worker correction or invalid reuse also ends with `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`. Followup messages may be encrypted, so Doctor reconciles the unencrypted final marker; roots without v9 remain historical/informational.
+- Preserve the existing conditional reports: a direct Worker interruption emits the exact `Worker 中断：...` line once; a root using Luna or Terra emits exactly one corresponding `Luna 验收：...` or `Terra 验收：...` line (both for mixed turns).
+- When practical, split units expected beyond 10 minutes for Luna or 30 minutes for Terra before dispatch; these are advisory boundaries, not timeouts or ordinary interruption reasons.
 - Structured dispatch, response and acceptance reporting, routing precedence, thresholds, eligible unit types, queueing, fork bounds, exclusions, parallel disjointness, and main-agent review/failure handling are defined in the [Harness workflow](../../../.codex/docs/workflows/harness-engineering.md).
 
 ## Natural Mode

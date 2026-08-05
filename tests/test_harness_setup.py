@@ -233,6 +233,9 @@ class HarnessSetupCliTests(unittest.TestCase):
         workflow = (
             ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
         ).read_text(encoding="utf-8")
+        skill = (
+            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
+        ).read_text(encoding="utf-8")
         recovery = RECOVERY_DOC.read_text(encoding="utf-8")
         fields = (
             "Objective",
@@ -254,11 +257,70 @@ class HarnessSetupCliTests(unittest.TestCase):
             "Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>",
             workflow,
         )
+        self.assertIn("Worker 协议：version=9", workflow)
+        self.assertIn(
+            "Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>",
+            workflow,
+        )
         for reason in ("overlap", "unsafe", "scope_violation", "user_redirect", "unresponsive"):
             self.assertIn(f"`{reason}`", workflow)
         self.assertIn("seven-field task contract", recovery)
         self.assertIn("Correction: 1/1", recovery)
         self.assertIn("Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>", recovery)
+        self.assertIn("Worker 协议：version=9", recovery)
+        self.assertIn(
+            "Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>",
+            recovery,
+        )
+        self.assertIn("Worker 协议：version=9", skill)
+        self.assertIn("Preserve the existing conditional reports", skill)
+        self.assertIn("does not relax the existing conditional reports", workflow)
+        self.assertIn("must append exactly one", workflow)
+        self.assertIn("required applicable acceptance line", workflow)
+        self.assertNotIn("companion lines remain optional", workflow)
+        self.assertIn("Conditional reports remain required", recovery)
+        self.assertNotIn("optional interruption and Luna/Terra acceptance lines", recovery)
+
+    def test_worker_protocol_v9_documents_root_scope_legacy_and_duration_advice(self) -> None:
+        workflow = (
+            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
+        ).read_text(encoding="utf-8")
+        skill = (
+            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
+
+        self.assertIn("started + violations", workflow)
+        self.assertIn("completed + failed = started", workflow)
+        self.assertIn("Followup messages may be encrypted", workflow)
+        self.assertIn("unencrypted final marker", workflow)
+        self.assertIn(
+            "Legacy roots without the v9 marker remain historical/informational",
+            workflow,
+        )
+        self.assertIn("Within each root session", workflow)
+        self.assertIn("per-root peaks are cap-enforced", workflow)
+        self.assertIn("Aggregate/global peaks across roots are informational diagnostics only", workflow)
+        self.assertIn("10 minutes", workflow)
+        self.assertIn("30 minutes", workflow)
+        self.assertIn("not mechanical timeouts", workflow)
+        self.assertIn("Report version 9", workflow)
+        self.assertNotIn("Report version 7", workflow)
+
+        self.assertIn("Followup messages may be encrypted", skill)
+        self.assertIn("roots without v9 remain historical/informational", skill)
+        self.assertIn("10 minutes for Luna", skill)
+        self.assertIn("30 minutes for Terra", skill)
+        self.assertIn("not timeouts or ordinary interruption reasons", skill)
+
+        self.assertIn("started + violations", recovery)
+        self.assertIn("completed + failed = started", recovery)
+        self.assertIn("Followup messages may be encrypted", recovery)
+        self.assertIn("Worker caps are enforced per root session", recovery)
+        self.assertIn("aggregate/global peaks are informational", recovery)
+        self.assertIn("10 minutes for Luna", recovery)
+        self.assertIn("30 minutes for Terra", recovery)
+        self.assertIn("not timeouts or ordinary interruption reasons", recovery)
 
     def test_public_tree_has_no_internal_project_identifiers(self) -> None:
         forbidden = (

@@ -636,6 +636,191 @@ class SessionAuditTests(unittest.TestCase):
         lines = [row if isinstance(row, str) else json.dumps(row, ensure_ascii=False) for row in rows]
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+    def write_v9_reuse_case(
+        self,
+        *,
+        name: str,
+        followup_count: int,
+        correction_line: str | None,
+        protocol_line: str | None = "Worker 协议：version=9",
+        reused_outcomes: list[str] | None = None,
+        interruption_line: str | None = None,
+    ) -> tuple[str, str]:
+        root_id, luna_id = f"{name}-root", f"{name}-luna"
+        root_turn = f"{name}-root-turn"
+        root_rows: list[dict] = [self.metadata(self.now, root_id)]
+        root_rows.extend(
+            [
+                {
+                    "timestamp": self.stamp(self.now),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "spawn_agent",
+                        "call_id": f"{name}-spawn",
+                        "arguments": json.dumps(
+                            {
+                                "agent_type": "luna_worker",
+                                "message": "Route: tdd/tests\nObjective: fixture",
+                            }
+                        ),
+                        "turn_id": root_turn,
+                    },
+                },
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": f"{name}-spawn",
+                        "agent_thread_id": luna_id,
+                        "kind": "started",
+                        "turn_id": root_turn,
+                    },
+                ),
+            ]
+        )
+        for index in range(followup_count):
+            offset = 3 + index * 2
+            call_id = f"{name}-followup-{index}"
+            root_rows.extend(
+                [
+                    {
+                        "timestamp": self.stamp(self.now + timedelta(seconds=offset)),
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "followup_task",
+                            "call_id": call_id,
+                            "arguments": json.dumps(
+                                {
+                                    "target": luna_id,
+                                    "message": f"gAAAAAB{name}-{index}",
+                                }
+                            ),
+                            "turn_id": root_turn,
+                        },
+                    },
+                    self.event(
+                        self.now + timedelta(seconds=offset),
+                        "event_msg",
+                        {
+                            "type": "sub_agent_activity",
+                            "event_id": call_id,
+                            "agent_thread_id": luna_id,
+                            "kind": "interacted",
+                        },
+                    ),
+                ]
+            )
+        message_lines = [
+            line
+            for line in (protocol_line, correction_line, interruption_line)
+            if line
+        ]
+        root_rows.append(
+            self.event(
+                self.now + timedelta(seconds=4 + followup_count * 2),
+                "event_msg",
+                {
+                    "type": "task_complete",
+                    "turn_id": root_turn,
+                    "last_agent_message": "\n".join(message_lines),
+                },
+            )
+        )
+        self.write(self.root / f"{name}-root.jsonl", root_rows)
+
+        luna_rows: list[dict] = [
+            self.metadata(self.now, luna_id, parent=root_id, depth=1),
+            self.event(
+                self.now + timedelta(seconds=1),
+                "event_msg",
+                {"type": "task_started", "turn_id": f"{name}-initial"},
+            ),
+            self.event(
+                self.now + timedelta(seconds=2),
+                "event_msg",
+                {"type": "task_complete", "turn_id": f"{name}-initial"},
+            ),
+        ]
+        for index in range(followup_count):
+            offset = 4 + index * 2
+            outcome = (reused_outcomes or ["completed"] * followup_count)[index]
+            luna_rows.extend(
+                [
+                    self.event(
+                        self.now + timedelta(seconds=offset),
+                        "event_msg",
+                        {"type": "task_started", "turn_id": f"{name}-reused-{index}"},
+                    ),
+                    self.event(
+                        self.now + timedelta(seconds=offset + 1),
+                        "event_msg",
+                        {
+                            "type": (
+                                "task_complete"
+                                if outcome == "completed"
+                                else "turn_aborted"
+                            ),
+                            "turn_id": f"{name}-reused-{index}",
+                        },
+                    ),
+                ]
+            )
+        self.write(self.root / f"{name}-luna.jsonl", luna_rows)
+        return root_id, luna_id
+
+    def write_worker_peak_root(
+        self,
+        *,
+        name: str,
+        luna_count: int,
+        terra_count: int,
+    ) -> None:
+        root_id, root_turn = f"{name}-root", f"{name}-root-turn"
+        root_rows: list[dict] = [self.metadata(self.now, root_id)]
+        for index in range(luna_count + terra_count):
+            role = "luna_worker" if index < luna_count else "terra_worker"
+            child_id = f"{name}-worker-{index}"
+            root_rows.append(
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "agent_thread_id": child_id,
+                        "kind": "started",
+                        "turn_id": root_turn,
+                    },
+                )
+            )
+            self.write(
+                self.root / f"{child_id}.jsonl",
+                [
+                    self.metadata(
+                        self.now,
+                        child_id,
+                        parent=root_id,
+                        depth=1,
+                        role=role,
+                    ),
+                    self.event(
+                        self.now + timedelta(seconds=1),
+                        "event_msg",
+                        {"type": "task_complete", "turn_id": f"{child_id}-turn"},
+                    ),
+                ],
+            )
+        root_rows.append(
+            self.event(
+                self.now + timedelta(seconds=2),
+                "event_msg",
+                {"type": "task_complete", "turn_id": root_turn},
+            )
+        )
+        self.write(self.root / f"{name}-root.jsonl", root_rows)
+
     def test_direct_completion_uses_filename_id_and_deduplicates_corrupt_stale_records(self) -> None:
         root_id = "11111111-1111-1111-1111-111111111111"
         child_id = "22222222-2222-2222-2222-222222222222"
@@ -2211,6 +2396,486 @@ class SessionAuditTests(unittest.TestCase):
         self.assertEqual(1, audit["worker_reuse_policy_violations"])
         self.assertEqual(1, audit["worker_interrupts_unresponsive"])
 
+    def test_v9_encrypted_correction_reconciles_without_plaintext_marker(self) -> None:
+        root_id, luna_id = "v9-encrypted-root", "v9-encrypted-luna"
+        root_turn = "v9-encrypted-root-turn"
+        self.write(
+            self.root / "v9-encrypted-root.jsonl",
+            [
+                self.metadata(self.now, root_id),
+                {
+                    "timestamp": self.stamp(self.now),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "spawn_agent",
+                        "call_id": "v9-encrypted-spawn",
+                        "arguments": json.dumps(
+                            {
+                                "agent_type": "luna_worker",
+                                "message": "Route: tdd/tests\nObjective: focused check",
+                            }
+                        ),
+                        "turn_id": root_turn,
+                    },
+                },
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": "v9-encrypted-spawn",
+                        "agent_thread_id": luna_id,
+                        "kind": "started",
+                        "turn_id": root_turn,
+                    },
+                ),
+                {
+                    "timestamp": self.stamp(self.now + timedelta(seconds=3)),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "followup_task",
+                        "call_id": "v9-encrypted-followup",
+                        "arguments": json.dumps(
+                            {
+                                "target": luna_id,
+                                "message": "gAAAAABencrypted-followup",
+                            }
+                        ),
+                        "turn_id": root_turn,
+                    },
+                },
+                self.event(
+                    self.now + timedelta(seconds=3),
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": "v9-encrypted-followup",
+                        "agent_thread_id": luna_id,
+                        "kind": "interacted",
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=6),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": root_turn,
+                        "last_agent_message": (
+                            "Worker 协议：version=9\n"
+                            "Worker 纠错：started=1 completed=1 failed=0 violations=0"
+                        ),
+                    },
+                ),
+            ],
+        )
+        self.write(
+            self.root / "v9-encrypted-luna.jsonl",
+            [
+                self.metadata(self.now, luna_id, parent=root_id, depth=1),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "task_started", "turn_id": "v9-initial-turn"},
+                ),
+                self.event(
+                    self.now + timedelta(seconds=2),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "v9-initial-turn"},
+                ),
+                self.event(
+                    self.now + timedelta(seconds=4),
+                    "event_msg",
+                    {"type": "task_started", "turn_id": "v9-correction-turn"},
+                ),
+                self.event(
+                    self.now + timedelta(seconds=5),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "v9-correction-turn"},
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["worker_protocol_reports_valid"])
+        self.assertEqual(1, audit["worker_correction_reports_valid"])
+        self.assertEqual(0, audit["worker_correction_reports_missing"])
+        self.assertEqual(0, audit["worker_correction_reports_invalid"])
+        self.assertEqual(1, audit["worker_correction_turns_started"])
+        self.assertEqual(1, audit["worker_correction_turns_completed"])
+        self.assertEqual(0, audit["worker_correction_turns_failed"])
+        self.assertEqual(0, audit["protocol_worker_reuse_policy_violations"])
+        self.assertEqual(
+            {"worker-session-policy-ok"},
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
+    def test_v9_failed_encrypted_correction_reconciles(self) -> None:
+        root_id, terra_id = "v9-failed-root", "v9-failed-terra"
+        root_turn = "v9-failed-root-turn"
+        self.write(
+            self.root / "v9-failed-root.jsonl",
+            [
+                self.metadata(self.now, root_id),
+                {
+                    "timestamp": self.stamp(self.now),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "spawn_agent",
+                        "call_id": "v9-failed-spawn",
+                        "arguments": json.dumps({"agent_type": "terra_worker"}),
+                        "turn_id": root_turn,
+                    },
+                },
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": "v9-failed-spawn",
+                        "agent_thread_id": terra_id,
+                        "kind": "started",
+                        "turn_id": root_turn,
+                    },
+                ),
+                {
+                    "timestamp": self.stamp(self.now + timedelta(seconds=3)),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "followup_task",
+                        "call_id": "v9-failed-followup",
+                        "arguments": json.dumps(
+                            {"target": terra_id, "message": "gAAAAABfailed-followup"}
+                        ),
+                        "turn_id": root_turn,
+                    },
+                },
+                self.event(
+                    self.now + timedelta(seconds=3),
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": "v9-failed-followup",
+                        "agent_thread_id": terra_id,
+                        "kind": "interacted",
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=6),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": root_turn,
+                        "last_agent_message": (
+                            "Worker 协议：version=9\n"
+                            "Worker 纠错：started=1 completed=0 failed=1 violations=0\n"
+                            "Worker 中断：overlap=0 unsafe=0 scope_violation=0 "
+                            "user_redirect=0 unresponsive=1"
+                        ),
+                    },
+                ),
+            ],
+        )
+        self.write(
+            self.root / "v9-failed-terra.jsonl",
+            [
+                self.metadata(
+                    self.now, terra_id, parent=root_id, depth=1, role="terra_worker"
+                ),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "task_started", "turn_id": "v9-failed-initial"},
+                ),
+                self.event(
+                    self.now + timedelta(seconds=2),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "v9-failed-initial"},
+                ),
+                self.event(
+                    self.now + timedelta(seconds=4),
+                    "event_msg",
+                    {"type": "task_started", "turn_id": "v9-failed-correction"},
+                ),
+                self.event(
+                    self.now + timedelta(seconds=5),
+                    "event_msg",
+                    {"type": "turn_aborted", "turn_id": "v9-failed-correction"},
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["worker_correction_reports_valid"])
+        self.assertEqual(0, audit["worker_correction_reports_invalid"])
+        self.assertEqual(1, audit["worker_correction_turns_started"])
+        self.assertEqual(0, audit["worker_correction_turns_completed"])
+        self.assertEqual(1, audit["worker_correction_turns_failed"])
+        self.assertEqual(0, audit["protocol_worker_reuse_policy_violations"])
+        self.assertEqual(0, audit["protocol_worker_interrupts_missing_reason"])
+        self.assertEqual(0, audit["protocol_worker_interrupt_reports_invalid"])
+
+    def test_v9_first_unrelated_reuse_is_reported_as_a_violation(self) -> None:
+        self.write_v9_reuse_case(
+            name="v9-first-unrelated",
+            followup_count=2,
+            correction_line=(
+                "Worker 纠错：started=1 completed=1 failed=0 violations=1"
+            ),
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["worker_correction_reports_valid"])
+        self.assertEqual(0, audit["worker_correction_reports_invalid"])
+        self.assertEqual(1, audit["protocol_worker_reuse_policy_violations"])
+        self.assertEqual(
+            {"worker-reuse-policy-violation"},
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
+    def test_v9_second_followup_is_a_reuse_violation(self) -> None:
+        self.write_v9_reuse_case(
+            name="v9-second-followup",
+            followup_count=2,
+            correction_line=(
+                "Worker 纠错：started=1 completed=1 failed=0 violations=1"
+            ),
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["worker_correction_reports_valid"])
+        self.assertEqual(1, audit["protocol_worker_reuse_policy_violations"])
+        self.assertEqual(0, audit["worker_correction_reports_invalid"])
+        self.assertEqual(1, audit["worker_correction_turns_started"])
+        self.assertEqual(1, audit["worker_correction_turns_completed"])
+        self.assertEqual(0, audit["worker_correction_turns_failed"])
+
+    def test_v9_correction_uses_the_first_associated_followup_turn(self) -> None:
+        self.write_v9_reuse_case(
+            name="v9-ordered-followups",
+            followup_count=2,
+            correction_line=(
+                "Worker 纠错：started=1 completed=1 failed=0 violations=1"
+            ),
+            reused_outcomes=["failed", "completed"],
+            interruption_line=(
+                "Worker 中断：overlap=0 unsafe=0 scope_violation=0 "
+                "user_redirect=0 unresponsive=1"
+            ),
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(0, audit["worker_correction_reports_valid"])
+        self.assertEqual(1, audit["worker_correction_reports_invalid"])
+        self.assertEqual(
+            {"worker-correction-report-invalid"},
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
+    def test_v9_missing_invalid_and_orphan_correction_reports(self) -> None:
+        self.write_v9_reuse_case(
+            name="v9-missing-correction",
+            followup_count=1,
+            correction_line=None,
+        )
+        self.write_v9_reuse_case(
+            name="v9-invalid-correction",
+            followup_count=1,
+            correction_line=(
+                "Worker 纠错：started=1 completed=0 failed=0 violations=0"
+            ),
+        )
+        self.write(
+            self.root / "v9-orphan-correction.jsonl",
+            [
+                self.metadata(self.now, "v9-orphan-root"),
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": "v9-orphan-turn",
+                        "last_agent_message": (
+                            "Worker 协议：version=9\n"
+                            "Worker 纠错：started=0 completed=0 failed=0 violations=0"
+                        ),
+                    },
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["worker_correction_reports_missing"])
+        self.assertEqual(2, audit["worker_correction_reports_invalid"])
+        self.assertEqual(1, audit["worker_protocol_reports_invalid"])
+        self.assertEqual(
+            {
+                "worker-protocol-report-invalid",
+                "worker-correction-report-missing",
+                "worker-correction-report-invalid",
+            },
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
+    def test_v9_protocol_marker_must_be_an_exact_root_line(self) -> None:
+        self.write_v9_reuse_case(
+            name="v9-invalid-protocol",
+            followup_count=0,
+            correction_line=None,
+            protocol_line="Worker 协议：version=09",
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(0, audit["worker_protocol_reports_valid"])
+        self.assertEqual(0, audit["worker_protocol_reports_missing"])
+        self.assertEqual(1, audit["worker_protocol_reports_invalid"])
+        self.assertEqual(
+            {"worker-protocol-report-invalid"},
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
+    def test_legacy_worker_logs_remain_informational_for_v9_policy(self) -> None:
+        self.write_v9_reuse_case(
+            name="legacy-informational",
+            followup_count=1,
+            correction_line=None,
+            protocol_line=None,
+            reused_outcomes=["failed"],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["worker_protocol_reports_missing"])
+        self.assertEqual(1, audit["worker_reuse_policy_violations"])
+        self.assertEqual(1, audit["worker_interrupts_missing_reason"])
+        self.assertEqual(0, audit["protocol_worker_reuse_policy_violations"])
+        self.assertEqual(0, audit["protocol_worker_interrupts_missing_reason"])
+        self.assertEqual(
+            {"worker-session-policy-ok"},
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
+    def test_v9_concurrency_caps_are_scoped_to_each_root_session(self) -> None:
+        self.write_worker_peak_root(
+            name="v9-cross-root-one",
+            luna_count=5,
+            terra_count=0,
+        )
+        self.write_worker_peak_root(
+            name="v9-cross-root-two",
+            luna_count=5,
+            terra_count=0,
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(10, audit["luna_peak_concurrency"])
+        self.assertEqual(10, audit["worker_peak_concurrency"])
+        self.assertEqual(5, audit["root_luna_peak_concurrency"])
+        self.assertEqual(5, audit["root_worker_peak_concurrency"])
+        self.assertEqual(
+            {"worker-session-policy-ok"},
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
+    def test_v9_same_root_concurrency_overruns_are_reported(self) -> None:
+        self.write_worker_peak_root(
+            name="v9-same-root",
+            luna_count=6,
+            terra_count=3,
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(9, audit["root_worker_peak_concurrency"])
+        self.assertEqual(6, audit["root_luna_peak_concurrency"])
+        self.assertEqual(3, audit["root_terra_peak_concurrency"])
+        self.assertEqual(
+            {"worker-concurrency-over-limit", "luna-concurrency-over-limit"},
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
+    def test_v9_route_warnings_ignore_legacy_raw_route_metrics(self) -> None:
+        def write_route_root(name: str, protocol_line: str | None) -> None:
+            root_id, root_turn = f"{name}-root", f"{name}-turn"
+            root_rows: list[dict] = [self.metadata(self.now, root_id)]
+            for call_id, arguments in (
+                (
+                    "mismatch",
+                    {
+                        "agent_type": "terra_worker",
+                        "message": "Route: tdd/tests\nObjective: mismatch",
+                    },
+                ),
+                (
+                    "unknown",
+                    {"agent_type": "luna_worker", "message": "gAAAAABroute"},
+                ),
+                (
+                    "invalid",
+                    {
+                        "agent_type": "luna_worker",
+                        "message": "Route: tdd/tests\nObjective: conflict",
+                        "task_name": "route__tdd__implementation__fixture",
+                    },
+                ),
+            ):
+                root_rows.append(
+                    {
+                        "timestamp": self.stamp(self.now),
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "spawn_agent",
+                            "call_id": f"{name}-{call_id}",
+                            "arguments": json.dumps(arguments),
+                            "turn_id": root_turn,
+                        },
+                    }
+                )
+            root_rows.append(
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": root_turn,
+                        "last_agent_message": protocol_line or "",
+                    },
+                )
+            )
+            self.write(self.root / f"{name}.jsonl", root_rows)
+
+        write_route_root("v9-routes", "Worker 协议：version=9")
+        write_route_root("legacy-routes", None)
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(2, audit["route_units_mismatched"])
+        self.assertEqual(2, audit["route_units_unknown"])
+        self.assertEqual(2, audit["worker_route_reports_invalid"])
+        self.assertEqual(1, audit["protocol_route_units_mismatched"])
+        self.assertEqual(1, audit["protocol_route_units_unknown"])
+        self.assertEqual(1, audit["protocol_worker_route_reports_invalid"])
+        self.assertEqual(
+            {
+                "worker-route-mismatch",
+                "worker-route-unknown",
+                "worker-route-report-invalid",
+            },
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
     def test_encrypted_spawn_message_uses_auditable_task_name_route(self) -> None:
         self.write(
             self.root / "encrypted-route.jsonl",
@@ -2493,17 +3158,15 @@ class SessionAuditTests(unittest.TestCase):
         audit = doctor._audit_default(7)
         audit.update(
             {
-                "worker_peak_concurrency": 9,
-                "luna_peak_concurrency": 6,
+                "root_worker_peak_concurrency": 9,
+                "root_luna_peak_concurrency": 6,
                 "worker_nested": 1,
-                "route_units_reported": 3,
-                "route_units_matched": 0,
-                "route_units_mismatched": 2,
-                "route_units_unknown": 1,
-                "worker_route_reports_invalid": 1,
-                "worker_reuse_policy_violations": 1,
-                "worker_interrupts_missing_reason": 1,
-                "worker_interrupt_reports_invalid": 1,
+                "protocol_route_units_mismatched": 2,
+                "protocol_route_units_unknown": 1,
+                "protocol_worker_route_reports_invalid": 1,
+                "protocol_worker_reuse_policy_violations": 1,
+                "protocol_worker_interrupts_missing_reason": 1,
+                "protocol_worker_interrupt_reports_invalid": 1,
             }
         )
 
@@ -2531,7 +3194,7 @@ class SessionAuditTests(unittest.TestCase):
         legacy = doctor._audit_default(7)
         legacy["route_units_unknown"] = 4
         self.assertEqual(
-            "worker-route-unknown",
+            "worker-session-policy-ok",
             doctor.check_worker_session_policy(legacy)[0]["code"],
         )
 
@@ -2561,7 +3224,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("worktrees", payload["section_summaries"])
         self.assertIn("sessions", payload["section_summaries"])
         self.assertNotIn("docs", payload["section_summaries"])
-        self.assertEqual(8, payload["version"])
+        self.assertEqual(9, payload["version"])
         self.assertEqual(0, doctor.report_exit_code(report, strict=False))
         self.assertEqual(1, doctor.report_exit_code(report, strict=True))
 
@@ -2638,7 +3301,7 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(value, payload["session_audit"][field])
             if field.startswith(("luna_", "terra_", "worker_", "route_", "root_")):
                 self.assertIn(f"{field}={value}", rendered)
-        self.assertEqual(8, payload["version"])
+        self.assertEqual(9, payload["version"])
 
     def test_docs_section_is_explicit_and_rendered(self) -> None:
         parser = doctor.build_parser()

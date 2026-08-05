@@ -149,10 +149,15 @@ corresponding terminal report immediately instead of waiting for other work or c
 
 ### Scheduling and parallelism
 
-At most 8 direct Worker threads may be open concurrently, excluding the main thread. At most 5 may be
-`luna_worker`. When Luna and Terra work are both queued, preserve up to 3 slots for Terra; Terra may use
-additional idle slots when no Luna unit is waiting. The main agent closes or reuses completed threads and
-queues additional units until a slot is free. Do not bypass any cap through nested or indirect workers.
+Within each root session, at most 8 direct Worker threads may be open concurrently, excluding the main
+thread, and at most 5 may be `luna_worker`. These per-root peaks are cap-enforced. Aggregate/global peaks across roots are informational diagnostics only; they do not redefine the per-root caps. When Luna and Terra
+work are both queued, preserve up to 3 slots for Terra; Terra may use additional idle slots when no Luna
+unit is waiting. The main agent closes or reuses completed threads and queues additional units until a slot
+is free. Do not bypass any cap through nested or indirect workers.
+
+Duration boundaries are advisory planning guidance: when practical, split a Luna unit expected to exceed
+10 minutes or a Terra unit expected to exceed 30 minutes before dispatch. These are not mechanical timeouts,
+and an ordinary long turn is not an interruption reason.
 
 Parallel units must have disjoint write paths, mutable state/resources, and validation ownership. Shared
 generated outputs, fixtures, databases, ports, services, credentials, or validation commands count as
@@ -193,6 +198,36 @@ classify the interrupted turn as terminal `failed` solely because it was interru
 corrected result once and classify that work unit once. If no correction is allowed or the final review
 still fails, classify the terminal result according to the rules below.
 
+Every completed root turn that used a named Worker appends exactly one final, unencrypted protocol marker:
+
+```text
+Worker 协议：version=9
+```
+
+When a same-Worker correction or an invalid Worker reuse occurred, append exactly one correction marker as
+well:
+
+```text
+Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>
+```
+
+For this marker, `started` counts associated followup turns that started, `violations` counts associated
+followup turns that violated the single-correction reuse rule, and the associated followup-turn count is
+`started + violations`. The terminal accounting invariant is `completed + failed = started`.
+Followup messages may be encrypted, so Doctor reconciles this unencrypted final marker instead of reading followup
+plaintext. Legacy roots without the v9 marker remain historical/informational and are not v9 protocol
+compliance failures.
+
+The v9 protocol marker does not relax the existing conditional reports. A direct Worker interruption must
+append the exact interruption line above once. A completed root turn that used Luna must append exactly one
+Luna acceptance line, and one that used Terra must append exactly one Terra acceptance line; a mixed turn
+appends both role lines:
+
+```text
+Luna 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
+Terra 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
+```
+
 Classify each terminal Worker unit during that review:
 
 - `adopted`: the result is used without material correction;
@@ -200,13 +235,8 @@ Classify each terminal Worker unit during that review:
 - `rejected`: a completed result is reviewed but no substantive part is used; or
 - `failed`: the unit is blocked, fails, is interrupted, or produces no reviewable result.
 
-When a completed root turn used Luna, append exactly one Luna line. When it used Terra, append exactly one
-Terra line. A mixed turn appends both lines:
-
-```text
-Luna 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
-Terra 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
-```
+For completed root turns that used a role, the required applicable acceptance line records the reviewed
+work-unit totals. Keep each line exact and do not substitute prose for its machine-readable fields.
 
 Count work units, including queued units run by reusing an existing Worker thread. Assign each unit to the
 role passed in that unit's `spawn_agent.agent_type`; never reconstruct the role from its task, model, name,
@@ -307,11 +337,13 @@ Use `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doct
 Full Doctor output is grouped into `Skills`, `Worktrees`, and `Sessions`. Use repeatable `--section skills`, `--section worktrees`, or `--section sessions` with `--full` to limit scanning and output. Session completion counts are deduplicated across log files by `turn_id`; `raw_completed` and `duplicates_skipped` keep the source volume visible.
 
 Session reports expose symmetric Luna and Terra lifecycle and work-unit outcomes from the exact
-final-answer acceptance lines. Report version 7 also exposes combined Worker concurrency, mixed-role root
-turns, route matches, route mismatches, unknown routes, and valid no-delegation reasons. Historical missing
-outcome lines remain informational; nested Workers, concurrency overruns, route mismatches, and invalid
-route reports produce session warnings. The legacy `successful_root_turns_with_luna` field retains its v6
-meaning: a direct Luna child completed, not that its result was adopted.
+final-answer acceptance lines. Report version 9 also exposes per-root Worker concurrency peaks, aggregate
+global peaks for information, mixed-role root turns, route matches, route mismatches, unknown routes, and
+valid no-delegation reasons. Per-root peaks enforce the Worker caps; global peaks are informational.
+Historical missing outcome lines and roots without the v9 protocol marker remain informational; nested
+Workers, per-root concurrency overruns, route mismatches, and invalid route reports produce session
+warnings. The legacy `successful_root_turns_with_luna` field retains its v6 meaning: a direct Luna child
+completed, not that its result was adopted.
 
 Document gardening is an optional section and is not included in the default full scan. Run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full --section docs --repo-root <repo>` only when the documentation-gardening workflow calls for it.
 

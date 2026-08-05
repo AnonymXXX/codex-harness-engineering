@@ -23,6 +23,14 @@ Codex configuration into Git.
   uses one same-Worker `followup_task` marked `Correction: 1/1`; unrelated work gets a new spawn.
   A root task reports adopted, partially adopted, rejected, and failed work-unit counts for each Worker role
   it used so Harness Doctor can audit actual result use and route compliance.
+- Every completed root turn that used a named Worker appends the exact final marker `Worker 协议：version=9`.
+  A same-Worker correction or invalid reuse also appends `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`;
+  `started + violations` counts associated followup turns and `completed + failed = started`. Followup messages may be encrypted,
+  so Doctor reconciles the unencrypted final marker. Roots without v9 remain
+  historical/informational.
+- Worker caps are enforced per root session (8 total, including at most 5 Luna); aggregate/global peaks are informational.
+  When practical, split units expected beyond 10 minutes for Luna or 30 minutes for Terra;
+  these are advisory boundaries, not timeouts or ordinary interruption reasons.
 
 ## Recovery Contract
 
@@ -105,8 +113,12 @@ path. Permanent deletion is not part of recovery or rollback.
 - A temporary empty HOME can install and check profiles twice without drift.
 - The installed `luna_worker` and `terra_worker` match their tracked TOML files and are available to
   fresh Codex tasks.
-- A fresh task can dispatch Luna and Terra with the seven-field structured contract and emits one machine-readable
-  acceptance line for each role used after the main agent reviews the results.
+- A fresh task can dispatch Luna and Terra with the seven-field structured contract and emits the exact
+  `Worker 协议：version=9` marker for every completed root turn that used a named Worker. When correction
+  or invalid reuse occurs, it also emits the exact `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`
+  marker. Conditional reports remain required: a direct Worker interruption emits the exact interruption
+  line below once, and a completed root turn using Luna or Terra emits exactly one machine-readable
+  acceptance line for each role used after review (both role lines for a mixed turn).
 - When a direct Worker turn is interrupted, the root task emits this exact line with only the five approved reasons:
 
   ```text
