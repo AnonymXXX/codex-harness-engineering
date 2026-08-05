@@ -18,7 +18,7 @@ description: >-
 
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's preflight and delivery phases.
 
-- Prefer `luna_worker` with `Route: wechat-miniprogram-ci-upload/preflight` only for local read-only inspection of project configuration, version state, artifact paths, and existing build evidence.
+- Use `deepseek_v4_flash_worker` with `Route: wechat-miniprogram-ci-upload/preflight` only for local read-only inspection of project configuration, version state, artifact paths, and existing build evidence.
 - Keep builds with mutable outputs, uploads, version synchronization, commits, tags, pushes, credential handling, and final delivery verification with the main agent.
 
 Use this skill for WeChat Mini Program upload and preview flows. **Prefer WeChat DevTools CLI** for upload and preview. Use `miniprogram-ci` only as a fallback when DevTools CLI is unavailable, not logged in, or the user explicitly asks for key-based CI upload.

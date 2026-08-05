@@ -11,7 +11,7 @@ Use this skill when the user wants the agent to operate GitHub through the offic
 
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
 
-- Prefer `luna_worker` with `Route: github-cli-ops/inventory` only for read-only inventory of repositories, refs, objects, local state, and checks; return evidence without changing external state.
+- Use `deepseek_v4_flash_worker` with `Route: github-cli-ops/inventory` only for read-only inventory of repositories, refs, objects, local state, and checks; return evidence without changing external state.
 - Keep all external GitHub mutations and Git writes with the main agent, including issues, pull requests, settings, Actions, releases, secrets, pushes, and tags.
 
 ## Operating Model

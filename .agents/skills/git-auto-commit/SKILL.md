@@ -11,7 +11,7 @@ Use `references/git-commit-command.md` as the source reference for the original 
 
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's local phases.
 
-- Prefer `luna_worker` with `Route: git-auto-commit/inspect` only for read-only repository inspection and diff grouping suggestions; it must not stage or mutate files.
+- Use `deepseek_v4_flash_worker` with `Route: git-auto-commit/inspect` only for read-only repository inspection and diff grouping suggestions; it must not stage or mutate files.
 - Keep staging, commit-message decisions, commits, pushes, and cleanup with the main agent.
 
 ## Inspect Repository State

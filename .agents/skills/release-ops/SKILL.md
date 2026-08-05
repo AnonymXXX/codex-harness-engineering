@@ -11,7 +11,7 @@ Use this skill for git release promotion tasks that follow a repeatable backport
 
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
 
-- Prefer `luna_worker` with `Route: release-ops/inspect` for inspect-only release evidence: branch/ref/tag inventory, patch-equivalent comparison, candidate commits, blockers, and tag suggestions; it must not execute mutations.
+- Use `deepseek_v4_flash_worker` with `Route: release-ops/inspect` for inspect-only release evidence: branch/ref/tag inventory, patch-equivalent comparison, candidate commits, blockers, and tag suggestions; it must not execute mutations.
 - Keep execution, cherry-picks, tag creation, branch/tag pushes, conflict resolution, and final remote verification with the main agent.
 
 ## Defaults

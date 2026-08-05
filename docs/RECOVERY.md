@@ -8,29 +8,32 @@ Codex configuration into Git.
 
 ## Distribution Model
 
-- `core` installs global Harness rules, the `luna_worker` and `terra_worker` custom agents, and five
-  core engineering skills.
+- `core` installs global Harness rules, the `deepseek_v4_flash_worker` custom agent, and five core
+  engineering skills.
 - `daily` extends `core` with frequently used portable skills.
 - A private overlay can be loaded from a separately cloned local repository by explicitly supplying
   its source path and profile. The public distribution does not discover, catalog, or clone overlays.
 - Managed files are symlinked into `~/.codex` and `~/.agents/skills` so Git remains the versioned
   source of truth.
 - Codex-managed system skills remain owned by Codex and are not copied into this repository.
-- Luna and Terra dispatches use the tracked route marker, seven-field task contract, and structured response contract.
+- Flash dispatches use the tracked route marker, seven-field task contract, and structured response contract.
   The seven fields are `Objective`, `Ownership`, `Starting State`, `Interfaces`, `Constraints`, `Git Boundary`,
   and `Verification`; the detailed lifecycle remains in the Harness workflow.
 - Worker write paths stay exclusively owned until the main agent records release. An ordinary quality defect
   uses one same-Worker `followup_task` marked `Correction: 1/1`; unrelated work gets a new spawn.
-  A root task reports adopted, partially adopted, rejected, and failed work-unit counts for each Worker role
-  it used so Harness Doctor can audit actual result use and route compliance.
-- Every completed root turn that used a named Worker appends the exact final marker `Worker 协议：version=9`.
+  A root task reports adopted, partially adopted, rejected, and failed Flash work-unit counts so Harness
+  Doctor can audit actual result use and route compliance.
+- Every completed root turn that used a named Worker appends the exact final marker `Worker 协议：version=10`.
   A same-Worker correction or invalid reuse also appends `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`;
   `started + violations` counts associated followup turns and `completed + failed = started`. Followup messages may be encrypted,
-  so Doctor reconciles the unencrypted final marker. Roots without v9 remain
+  so Doctor reconciles the unencrypted final marker. Roots without v10 remain
   historical/informational.
-- Worker caps are enforced per root session (8 total, including at most 5 Luna); aggregate/global peaks are informational.
-  When practical, split units expected beyond 10 minutes for Luna or 30 minutes for Terra;
-  these are advisory boundaries, not timeouts or ordinary interruption reasons.
+- A root using `deepseek_v4_flash_worker` emits exactly one `Flash 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>`
+  line after review. Worker caps are enforced per root session (8 total); aggregate/global peaks are informational.
+  When practical, split units expected beyond 30 minutes; this is advisory, not a timeout or ordinary
+  interruption reason.
+- Harness Doctor continues to parse the old v9 Luna/Terra protocol as historical compatibility data, but
+  new dispatches use only `deepseek_v4_flash_worker`.
 
 ## Recovery Contract
 
@@ -111,14 +114,13 @@ path. Permanent deletion is not part of recovery or rollback.
 - `core` and `daily` resolve deterministically from the public `profiles.json`.
 - An explicit external overlay resolves only from its own Manifest and selected Profile.
 - A temporary empty HOME can install and check profiles twice without drift.
-- The installed `luna_worker` and `terra_worker` match their tracked TOML files and are available to
-  fresh Codex tasks.
-- A fresh task can dispatch Luna and Terra with the seven-field structured contract and emits the exact
-  `Worker 协议：version=9` marker for every completed root turn that used a named Worker. When correction
+- The installed `deepseek_v4_flash_worker` matches its tracked TOML file and is available to fresh Codex tasks.
+- A fresh task can dispatch Flash with the seven-field structured contract and emits the exact
+  `Worker 协议：version=10` marker for every completed root turn that used a named Worker. When correction
   or invalid reuse occurs, it also emits the exact `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`
   marker. Conditional reports remain required: a direct Worker interruption emits the exact interruption
-  line below once, and a completed root turn using Luna or Terra emits exactly one machine-readable
-  acceptance line for each role used after review (both role lines for a mixed turn).
+  line below once, and a completed root turn using Flash emits exactly one machine-readable acceptance line
+  after review.
 - When a direct Worker turn is interrupted, the root task emits this exact line with only the five approved reasons:
 
   ```text

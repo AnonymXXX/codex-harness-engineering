@@ -13,8 +13,8 @@ Do not use this skill for a native WeChat mini-program repo unless the task is e
 
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's capability modes.
 
-- Prefer `luna_worker` with `Route: develop-uniapp-miniapp/small-change` for small isolated changes and focused validation with disjoint ownership.
-- Route bounded Heavy Lane implementation of complex feature slices or frontend foundations to `terra_worker` with `Route: develop-uniapp-miniapp/complex-implementation`; keep mode selection, architecture, UX decisions, integration, and final validation with the main agent.
+- Use `deepseek_v4_flash_worker` with `Route: develop-uniapp-miniapp/small-change` for small isolated changes and focused validation with disjoint ownership.
+- Route bounded implementation of complex feature slices or frontend foundations to `deepseek_v4_flash_worker` with `Route: develop-uniapp-miniapp/complex-implementation`; keep mode selection, architecture, UX decisions, integration, and final validation with the main agent.
 
 ## Workflow
 

@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SETUP = ROOT / "scripts" / "harness_setup.py"
 RECOVERY_DOC = ROOT / "docs" / "RECOVERY.md"
 ROOT_MANIFEST = json.loads((ROOT / "profiles.json").read_text(encoding="utf-8"))
-EXPECTED_LUNA_CONFIG = '''name = "luna_worker"
-description = "Fast worker for clear, narrowly scoped, and repeatable tasks."
+EXPECTED_FLASH_CONFIG = '''name = "deepseek_v4_flash_worker"
+description = "Execution worker for bounded, independently verifiable tasks."
 developer_instructions = """
 Handle the assigned task strictly within its stated scope.
 Work independently and use appropriate tools when needed.
@@ -26,6 +26,7 @@ Verify the result when practical.
 Do not make unrelated changes.
 Do not call collaboration tools, including spawn_agent, followup_task, send_message, wait_agent, list_agents, or interrupt_agent.
 Do not delegate, coordinate, poll, wait for, or message the main agent or any other agent. Complete the assigned scope yourself.
+Do not make architecture, product, dependency, migration, release, configuration, credential, database, destructive-operation, production-operation, external-Git, coordination, integration, or final-acceptance decisions; use the interfaces and decisions fixed by the main agent.
 Expect the task prompt to define Objective, Ownership, Starting State, Interfaces, Constraints, Git Boundary, and Verification.
 If scope or ownership remains ambiguous, return blocked immediately instead of expanding the task or contacting another agent.
 Treat the task's Ownership paths as exclusive: modify only those paths and do not edit another Worker's paths.
@@ -35,30 +36,15 @@ Before reporting, record actual git status, the relevant diff or commit SHA, and
 Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
 Set Status to completed, blocked, or failed.
 """
-model = "gpt-5.6-luna"
+model_provider = "deepseek"
+model = "deepseek-v4-flash"
 model_reasoning_effort = "max"
-'''
-EXPECTED_TERRA_CONFIG = '''name = "terra_worker"
-description = "Complex worker for bounded Heavy Lane implementation tasks."
-developer_instructions = """
-Handle the assigned bounded Heavy Lane implementation strictly within its stated scope.
-Work independently and use appropriate tools when needed.
-Verify the result when practical.
-Do not make unrelated changes.
-Do not call collaboration tools, including spawn_agent, followup_task, send_message, wait_agent, list_agents, or interrupt_agent.
-Do not delegate, coordinate, poll, wait for, or message the main agent or any other agent. Complete the assigned scope yourself.
-Do not make architecture, product, dependency, migration, or release decisions; use the interfaces and decisions fixed by the main agent.
-Expect the task prompt to define Objective, Ownership, Starting State, Interfaces, Constraints, Git Boundary, and Verification.
-If scope or ownership remains ambiguous, return blocked immediately instead of expanding the task or contacting another agent.
-Treat the task's Ownership paths as exclusive: modify only those paths and do not edit another Worker's paths.
-Keep that ownership through any correction. A correction marked Correction: 1/1 addresses only the stated defect within the original boundary; do not accept a second correction or unrelated work.
-Do not perform branch, push, tag, PR, or worktree operations unless Git Boundary explicitly authorizes them.
-Before reporting, record actual git status, the relevant diff or commit SHA, and the verification result.
-Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
-Set Status to completed, blocked, or failed.
-"""
-model = "gpt-5.6-terra"
-model_reasoning_effort = "max"
+
+[model_providers.deepseek]
+name = "DeepSeek"
+base_url = "https://api.deepseek.com"
+wire_api = "responses"
+env_key = "DEEPSEEK_API_KEY"
 '''
 
 
@@ -123,16 +109,12 @@ class HarnessSetupCliTests(unittest.TestCase):
     def test_public_manifest_has_no_private_overlay_catalog(self) -> None:
         self.assertNotIn("overlay", ROOT_MANIFEST)
 
-    def test_global_agent_links_include_luna_and_terra(self) -> None:
+    def test_global_agent_links_include_only_flash_worker(self) -> None:
         self.assertEqual(
             [
                 {
-                    "source": ".codex/agents/luna-worker.toml",
-                    "destination": ".codex/agents/luna-worker.toml",
-                },
-                {
-                    "source": ".codex/agents/terra-worker.toml",
-                    "destination": ".codex/agents/terra-worker.toml",
+                    "source": ".codex/agents/deepseek-v4-flash-worker.toml",
+                    "destination": ".codex/agents/deepseek-v4-flash-worker.toml",
                 },
             ],
             [
@@ -142,15 +124,18 @@ class HarnessSetupCliTests(unittest.TestCase):
             ],
         )
 
-    def test_terra_agent_config_matches_tracked_toml(self) -> None:
-        config = ROOT / ".codex" / "agents" / "terra-worker.toml"
+    def test_flash_agent_config_matches_tracked_toml(self) -> None:
+        config = ROOT / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
 
-        self.assertEqual(EXPECTED_TERRA_CONFIG, config.read_text(encoding="utf-8"))
+        self.assertEqual(EXPECTED_FLASH_CONFIG, config.read_text(encoding="utf-8"))
 
     def test_worker_agent_configs_are_valid_toml_and_match_roles(self) -> None:
         expected = {
-            "luna-worker.toml": ("luna_worker", "gpt-5.6-luna", EXPECTED_LUNA_CONFIG),
-            "terra-worker.toml": ("terra_worker", "gpt-5.6-terra", EXPECTED_TERRA_CONFIG),
+            "deepseek-v4-flash-worker.toml": (
+                "deepseek_v4_flash_worker",
+                "deepseek-v4-flash",
+                EXPECTED_FLASH_CONFIG,
+            ),
         }
 
         for filename, (role, model, expected_text) in expected.items():
@@ -165,7 +150,12 @@ class HarnessSetupCliTests(unittest.TestCase):
                 parsed = tomllib.loads(text)
                 self.assertEqual(role, parsed["name"])
                 self.assertEqual(model, parsed["model"])
+                self.assertEqual("deepseek", parsed["model_provider"])
                 self.assertEqual("max", parsed["model_reasoning_effort"])
+                self.assertEqual("DeepSeek", parsed["model_providers"]["deepseek"]["name"])
+                self.assertEqual("https://api.deepseek.com", parsed["model_providers"]["deepseek"]["base_url"])
+                self.assertEqual("responses", parsed["model_providers"]["deepseek"]["wire_api"])
+                self.assertEqual("DEEPSEEK_API_KEY", parsed["model_providers"]["deepseek"]["env_key"])
                 self.assertIn("Starting State", parsed["developer_instructions"])
                 self.assertIn("Git Boundary", parsed["developer_instructions"])
                 self.assertIn("Correction: 1/1", parsed["developer_instructions"])
@@ -173,24 +163,24 @@ class HarnessSetupCliTests(unittest.TestCase):
     def test_core_worker_routes_are_declared_and_doctor_auditable(self) -> None:
         routes = {
             "diagnosing-bugs": {
-                "diagnosing-bugs/evidence": "luna",
-                "diagnosing-bugs/fix": "terra",
+                "diagnosing-bugs/evidence": "flash",
+                "diagnosing-bugs/fix": "flash",
             },
-            "tdd": {"tdd/tests": "luna", "tdd/implementation": "terra"},
+            "tdd": {"tdd/tests": "flash", "tdd/implementation": "flash"},
             "codebase-design": {
-                "codebase-design/evidence": "luna",
-                "codebase-design/implementation": "terra",
+                "codebase-design/evidence": "flash",
+                "codebase-design/implementation": "flash",
             },
             "develop-uniapp-miniapp": {
-                "develop-uniapp-miniapp/small-change": "luna",
-                "develop-uniapp-miniapp/complex-implementation": "terra",
+                "develop-uniapp-miniapp/small-change": "flash",
+                "develop-uniapp-miniapp/complex-implementation": "flash",
             },
-            "web-access": {"web-access/research": "luna"},
-            "git-auto-commit": {"git-auto-commit/inspect": "luna"},
-            "github-cli-ops": {"github-cli-ops/inventory": "luna"},
-            "release-ops": {"release-ops/inspect": "luna"},
+            "web-access": {"web-access/research": "flash"},
+            "git-auto-commit": {"git-auto-commit/inspect": "flash"},
+            "github-cli-ops": {"github-cli-ops/inventory": "flash"},
+            "release-ops": {"release-ops/inspect": "flash"},
             "wechat-miniprogram-ci-upload": {
-                "wechat-miniprogram-ci-upload/preflight": "luna"
+                "wechat-miniprogram-ci-upload/preflight": "flash"
             },
         }
         doctor_source = (
@@ -227,7 +217,7 @@ class HarnessSetupCliTests(unittest.TestCase):
             self.assertIn("route__<skill>__<phase>__<purpose>", normalized)
 
         self.assertIn("spawn_agent.agent_type", workflow)
-        self.assertIn("combined sum", workflow)
+        self.assertIn("their sum", workflow)
 
     def test_worker_dispatch_contract_covers_ownership_correction_and_interruptions(self) -> None:
         workflow = (
@@ -257,7 +247,7 @@ class HarnessSetupCliTests(unittest.TestCase):
             "Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>",
             workflow,
         )
-        self.assertIn("Worker 协议：version=9", workflow)
+        self.assertIn("Worker 协议：version=10", workflow)
         self.assertIn(
             "Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>",
             workflow,
@@ -267,21 +257,21 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("seven-field task contract", recovery)
         self.assertIn("Correction: 1/1", recovery)
         self.assertIn("Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>", recovery)
-        self.assertIn("Worker 协议：version=9", recovery)
+        self.assertIn("Worker 协议：version=10", recovery)
         self.assertIn(
             "Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>",
             recovery,
         )
-        self.assertIn("Worker 协议：version=9", skill)
+        self.assertIn("Worker 协议：version=10", skill)
         self.assertIn("Preserve the existing conditional reports", skill)
         self.assertIn("does not relax the existing conditional reports", workflow)
         self.assertIn("must append exactly one", workflow)
         self.assertIn("required applicable acceptance line", workflow)
         self.assertNotIn("companion lines remain optional", workflow)
         self.assertIn("Conditional reports remain required", recovery)
-        self.assertNotIn("optional interruption and Luna/Terra acceptance lines", recovery)
+        self.assertNotIn("optional interruption and Flash acceptance lines", recovery)
 
-    def test_worker_protocol_v9_documents_root_scope_legacy_and_duration_advice(self) -> None:
+    def test_worker_protocol_v10_documents_root_scope_legacy_and_duration_advice(self) -> None:
         workflow = (
             ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
         ).read_text(encoding="utf-8")
@@ -295,32 +285,31 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("Followup messages may be encrypted", workflow)
         self.assertIn("unencrypted final marker", workflow)
         self.assertIn(
-            "Legacy roots without the v9 marker remain historical/informational",
+            "roots without the v10",
             workflow,
         )
         self.assertIn("Within each root session", workflow)
-        self.assertIn("per-root peaks are cap-enforced", workflow)
-        self.assertIn("Aggregate/global peaks across roots are informational diagnostics only", workflow)
-        self.assertIn("10 minutes", workflow)
+        self.assertIn("per-root peak is cap-enforced", workflow)
+        self.assertIn("Aggregate/global peaks across roots are", workflow)
+        self.assertIn("informational diagnostics only", workflow)
         self.assertIn("30 minutes", workflow)
-        self.assertIn("not mechanical timeouts", workflow)
-        self.assertIn("Report version 9", workflow)
+        self.assertIn("not a mechanical timeout", workflow)
+        self.assertIn("Report version 10", workflow)
         self.assertNotIn("Report version 7", workflow)
 
         self.assertIn("Followup messages may be encrypted", skill)
-        self.assertIn("roots without v9 remain historical/informational", skill)
-        self.assertIn("10 minutes for Luna", skill)
-        self.assertIn("30 minutes for Terra", skill)
-        self.assertIn("not timeouts or ordinary interruption reasons", skill)
+        self.assertIn("roots without v10 remain historical/informational", skill)
+        self.assertIn("beyond 30 minutes", skill)
+        self.assertIn("not a timeout or ordinary interruption reason", skill)
 
         self.assertIn("started + violations", recovery)
         self.assertIn("completed + failed = started", recovery)
         self.assertIn("Followup messages may be encrypted", recovery)
         self.assertIn("Worker caps are enforced per root session", recovery)
         self.assertIn("aggregate/global peaks are informational", recovery)
-        self.assertIn("10 minutes for Luna", recovery)
-        self.assertIn("30 minutes for Terra", recovery)
-        self.assertIn("not timeouts or ordinary interruption reasons", recovery)
+        self.assertIn("beyond 30 minutes", recovery)
+        self.assertIn("not a timeout or ordinary", recovery)
+        self.assertIn("interruption reason", recovery)
 
     def test_public_tree_has_no_internal_project_identifiers(self) -> None:
         forbidden = (
@@ -374,9 +363,9 @@ class HarnessSetupCliTests(unittest.TestCase):
 
         self.assertIn("seven-field task contract", recovery)
         self.assertIn("structured response contract", recovery)
-        self.assertIn("dispatch Luna and Terra", recovery)
+        self.assertIn("dispatch Flash", recovery)
         self.assertIn("one machine-readable", recovery)
-        self.assertIn("Luna and Terra dispatches", recovery)
+        self.assertIn("Flash dispatches", recovery)
 
     def test_install_leaves_machine_specific_codex_config_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -502,20 +491,13 @@ class HarnessSetupCliTests(unittest.TestCase):
             first = self.run_setup(home, "install", "--profile", "daily")
             self.assertEqual(first.returncode, 0, first.stderr or first.stdout)
             self.assertTrue((home / ".codex" / "AGENTS.md").is_symlink())
-            luna = home / ".codex" / "agents" / "luna-worker.toml"
-            self.assertTrue(luna.is_symlink())
+            flash = home / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
+            self.assertTrue(flash.is_symlink())
             self.assertEqual(
-                (ROOT / ".codex" / "agents" / "luna-worker.toml").resolve(),
-                luna.resolve(),
+                (ROOT / ".codex" / "agents" / "deepseek-v4-flash-worker.toml").resolve(),
+                flash.resolve(),
             )
-            self.assertEqual(EXPECTED_LUNA_CONFIG, luna.read_text(encoding="utf-8"))
-            terra = home / ".codex" / "agents" / "terra-worker.toml"
-            self.assertTrue(terra.is_symlink())
-            self.assertEqual(
-                (ROOT / ".codex" / "agents" / "terra-worker.toml").resolve(),
-                terra.resolve(),
-            )
-            self.assertEqual(EXPECTED_TERRA_CONFIG, terra.read_text(encoding="utf-8"))
+            self.assertEqual(EXPECTED_FLASH_CONFIG, flash.read_text(encoding="utf-8"))
             self.assertTrue((home / ".agents" / "skills" / "harness-engineering").is_symlink())
             self.assertTrue((home / ".agents" / "skills" / "web-access").is_symlink())
             self.assertIn("validation: index=skipped(custom-home)", first.stdout)
@@ -524,20 +506,20 @@ class HarnessSetupCliTests(unittest.TestCase):
             second = self.run_setup(home, "install", "--profile", "daily")
             self.assertEqual(second.returncode, 0, second.stderr or second.stdout)
             self.assertIn("unchanged", second.stdout)
-            self.assertIn(f"unchanged: {terra.parent.resolve() / terra.name}", second.stdout)
+            self.assertIn(f"unchanged: {flash.parent.resolve() / flash.name}", second.stdout)
 
-    def test_check_reports_missing_terra_agent_link(self) -> None:
+    def test_check_reports_missing_flash_agent_link(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             installed = self.run_setup(home, "install", "--profile", "core")
             self.assertEqual(installed.returncode, 0, installed.stderr or installed.stdout)
 
-            terra = home / ".codex" / "agents" / "terra-worker.toml"
-            terra.unlink()
+            flash = home / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
+            flash.unlink()
             result = self.run_setup(home, "check", "--profile", "core")
 
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn(f"link: missing {terra.resolve()}", result.stderr)
+            self.assertIn(f"link: missing {flash.resolve()}", result.stderr)
 
     def test_real_home_install_runs_index_and_doctor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -660,7 +642,7 @@ class HarnessSetupCliTests(unittest.TestCase):
                 installed.resolve(),
                 (overlay / ".agents" / "skills" / "private-project-map").resolve(),
             )
-            self.assertTrue((home / ".codex" / "agents" / "luna-worker.toml").is_symlink())
+            self.assertTrue((home / ".codex" / "agents" / "deepseek-v4-flash-worker.toml").is_symlink())
             checked = self.run_setup(
                 home,
                 "check",
@@ -787,20 +769,20 @@ class HarnessSetupCliTests(unittest.TestCase):
             self.assertEqual(len(backups), 1)
             self.assertEqual(backups[0].read_text(encoding="utf-8"), "user-owned\n")
 
-    def test_conflicting_luna_agent_is_backed_up_before_linking(self) -> None:
+    def test_conflicting_flash_agent_is_backed_up_before_linking(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
-            luna = home / ".codex" / "agents" / "luna-worker.toml"
-            luna.parent.mkdir(parents=True)
-            luna.write_text("user-owned\n", encoding="utf-8")
+            flash = home / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
+            flash.parent.mkdir(parents=True)
+            flash.write_text("user-owned\n", encoding="utf-8")
 
             result = self.run_setup(home, "install", "--profile", "core")
 
             self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
-            self.assertTrue(luna.is_symlink())
-            self.assertEqual(EXPECTED_LUNA_CONFIG, luna.read_text(encoding="utf-8"))
+            self.assertTrue(flash.is_symlink())
+            self.assertEqual(EXPECTED_FLASH_CONFIG, flash.read_text(encoding="utf-8"))
             backups = self.find_backup_entries(
-                home, Path(".codex/agents/luna-worker.toml")
+                home, Path(".codex/agents/deepseek-v4-flash-worker.toml")
             )
             self.assertEqual(len(backups), 1)
             self.assertEqual(backups[0].read_text(encoding="utf-8"), "user-owned\n")
@@ -839,7 +821,7 @@ class HarnessSetupCliTests(unittest.TestCase):
             missing = self.run_setup(home, "check", "--profile", "core")
             self.assertNotEqual(missing.returncode, 0)
             self.assertIn(
-                f"link: missing {home.resolve() / '.codex/agents/luna-worker.toml'}",
+                f"link: missing {home.resolve() / '.codex/agents/deepseek-v4-flash-worker.toml'}",
                 missing.stderr,
             )
 
@@ -849,24 +831,6 @@ class HarnessSetupCliTests(unittest.TestCase):
             checked = self.run_setup(home, "check", "--profile", "core")
             self.assertEqual(checked.returncode, 0, checked.stderr or checked.stdout)
             self.assertIn("check: ok", checked.stdout)
-
-    def test_conflicting_terra_agent_is_backed_up_before_linking(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            home = Path(tmp)
-            terra = home / ".codex" / "agents" / "terra-worker.toml"
-            terra.parent.mkdir(parents=True)
-            terra.write_text("user-owned\n", encoding="utf-8")
-
-            result = self.run_setup(home, "install", "--profile", "core")
-
-            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
-            self.assertTrue(terra.is_symlink())
-            self.assertEqual(EXPECTED_TERRA_CONFIG, terra.read_text(encoding="utf-8"))
-            backups = self.find_backup_entries(
-                home, Path(".codex/agents/terra-worker.toml")
-            )
-            self.assertEqual(len(backups), 1)
-            self.assertEqual(backups[0].read_text(encoding="utf-8"), "user-owned\n")
 
     def test_credentials_set_uses_keychain_prompt_without_password_argument(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

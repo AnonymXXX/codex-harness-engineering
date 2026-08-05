@@ -57,7 +57,7 @@ Normal non-forced pushes to `origin/dev`, `origin/develop`, `origin/test`, and `
 
 ## Subagent Delegation
 
-After risk classification, use Worker-first routing for every non-simple engineering task. Prefer `luna_worker` for bounded routine work and `terra_worker` for bounded Heavy Lane implementation; every routed `spawn_agent` call must set that exact `agent_type` and an auditable `route__<skill>__<phase>__<purpose>` task name, never the generic default. Common Skills own their stage routes. Follow `~/.codex/docs/workflows/harness-engineering.md` for thresholds, the seven-field dispatch and acceptance contract, the 8-thread pool, queueing, exclusions, leaf behavior, and main-agent review.
+After risk classification, route every safely delegable engineering execution task to `deepseek_v4_flash_worker`, regardless of size; every routed `spawn_agent` call must set that exact `agent_type` and an auditable `route__<skill>__<phase>__<purpose>` task name, never the generic default. Common Skills own their stage routes. The main agent retains architecture, safety-sensitive operations, coordination, integration, and final acceptance. Follow `~/.codex/docs/workflows/harness-engineering.md` for the seven-field dispatch and acceptance contract, the 8-thread pool, queueing, exclusions, leaf behavior, and main-agent review.
 Worker write paths stay exclusive until explicit release; use the detailed workflow for one same-Worker correction and interruption reasons.
 
 ## Harness Engineering

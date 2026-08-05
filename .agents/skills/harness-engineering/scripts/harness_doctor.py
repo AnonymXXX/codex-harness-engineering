@@ -27,7 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.9
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         tomllib = None  # type: ignore[assignment]
 
-REPORT_VERSION = 9
+REPORT_VERSION = 10
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FRONTMATTER_PATTERN = re.compile(r"^---\n(.*?)\n---(?:\n|$)", re.DOTALL)
 ROLLOUT_ID_PATTERN = re.compile(
@@ -37,6 +37,13 @@ ROLLOUT_ID_PATTERN = re.compile(
 LUNA_OUTCOME_PREFIX = "Luna 验收："
 LUNA_OUTCOME_PATTERN = re.compile(
     r"^Luna 验收：adopted=(?P<adopted>0|[1-9]\d*) "
+    r"partial=(?P<partial>0|[1-9]\d*) "
+    r"rejected=(?P<rejected>0|[1-9]\d*) "
+    r"failed=(?P<failed>0|[1-9]\d*)$"
+)
+FLASH_OUTCOME_PREFIX = "Flash 验收："
+FLASH_OUTCOME_PATTERN = re.compile(
+    r"^Flash 验收：adopted=(?P<adopted>0|[1-9]\d*) "
     r"partial=(?P<partial>0|[1-9]\d*) "
     r"rejected=(?P<rejected>0|[1-9]\d*) "
     r"failed=(?P<failed>0|[1-9]\d*)$"
@@ -77,7 +84,8 @@ WORKER_INTERRUPTION_REASONS = (
 )
 WORKER_CORRECTION_MARKER = "Correction: 1/1"
 WORKER_PROTOCOL_PREFIX = "Worker 协议："
-WORKER_PROTOCOL_LINE = "Worker 协议：version=9"
+WORKER_PROTOCOL_LINE = "Worker 协议：version=10"
+LEGACY_WORKER_PROTOCOL_LINE = "Worker 协议：version=9"
 WORKER_CORRECTION_REPORT_PREFIX = "Worker 纠错："
 WORKER_CORRECTION_REPORT_PATTERN = re.compile(
     r"^Worker 纠错：started=(?P<started>0|[1-9]\d*) "
@@ -85,13 +93,34 @@ WORKER_CORRECTION_REPORT_PATTERN = re.compile(
     r"failed=(?P<failed>0|[1-9]\d*) "
     r"violations=(?P<violations>0|[1-9]\d*)$"
 )
+ACTIVE_WORKER_ROLE = "deepseek_v4_flash_worker"
 WORKER_ROLE_ALIASES = {
+    ACTIVE_WORKER_ROLE: "flash",
+    "flash": "flash",
     "luna_worker": "luna",
     "luna": "luna",
     "terra_worker": "terra",
     "terra": "terra",
 }
 WORKER_ROUTE_EXPECTATIONS = {
+    "codebase-design/evidence": "flash",
+    "codebase-design/implementation": "flash",
+    "develop-uniapp-miniapp/small-change": "flash",
+    "develop-uniapp-miniapp/complex-implementation": "flash",
+    "diagnosing-bugs/evidence": "flash",
+    "diagnosing-bugs/fix": "flash",
+    "git-auto-commit/inspect": "flash",
+    "github-cli-ops/inventory": "flash",
+    "release-ops/inspect": "flash",
+    "tdd/tests": "flash",
+    "tdd/implementation": "flash",
+    "web-access/research": "flash",
+    "wechat-miniprogram-ci-upload/preflight": "flash",
+    "harness-engineering/routine": "flash",
+    "harness-engineering/heavy-implementation": "flash",
+    "harness-engineering/independent-verification": "flash",
+}
+LEGACY_WORKER_ROUTE_EXPECTATIONS = {
     "codebase-design/evidence": "luna",
     "codebase-design/implementation": "terra",
     "develop-uniapp-miniapp/small-change": "luna",
@@ -109,6 +138,7 @@ WORKER_ROUTE_EXPECTATIONS = {
     "harness-engineering/heavy-implementation": "terra",
     "harness-engineering/independent-verification": "luna",
 }
+WORKER_ROLES = ("flash", "luna", "terra")
 HARNESS_SKILLS = {
     "codebase-design",
     "diagnosing-bugs",
@@ -203,8 +233,8 @@ def discover_worker_routes(
             if not matches:
                 continue
             roles = {
-                WORKER_ROLE_ALIASES[alias]
-                for alias in ("luna_worker", "terra_worker")
+                "flash"
+                for alias in (ACTIVE_WORKER_ROLE,)
                 if re.search(rf"(?<![A-Za-z0-9_]){re.escape(alias)}(?![A-Za-z0-9_])", line)
             }
             if len(matches) != 1 or len(roles) != 1:
@@ -1423,6 +1453,25 @@ def _audit_default(days: int) -> dict[str, Any]:
         "duplicates_skipped": 0,
         "reports": 0,
         "root_completed": 0,
+        "flash_started": 0,
+        "flash_completed": 0,
+        "flash_interrupted": 0,
+        "flash_nested": 0,
+        "flash_peak_concurrency": 0,
+        "root_flash_peak_concurrency": 0,
+        "root_turns_with_flash": 0,
+        "successful_root_turns_with_flash": 0,
+        "flash_units_reported": 0,
+        "flash_units_adopted": 0,
+        "flash_units_partially_adopted": 0,
+        "flash_units_rejected": 0,
+        "flash_units_failed": 0,
+        "root_turns_with_flash_outcome_report": 0,
+        "root_turns_missing_flash_outcome_report": 0,
+        "flash_outcome_reports_invalid": 0,
+        "flash_turns_started": 0,
+        "flash_turns_completed": 0,
+        "flash_turns_interrupted": 0,
         "luna_started": 0,
         "luna_completed": 0,
         "luna_interrupted": 0,
@@ -1496,6 +1545,8 @@ def _audit_default(days: int) -> dict[str, Any]:
         "worker_interrupts_user_redirect": 0,
         "worker_interrupts_unresponsive": 0,
         "worker_protocol_reports_valid": 0,
+        "worker_protocol_reports_v10": 0,
+        "worker_protocol_reports_v9": 0,
         "worker_protocol_reports_missing": 0,
         "worker_protocol_reports_invalid": 0,
         "worker_correction_reports_valid": 0,
@@ -1625,6 +1676,7 @@ def _audit_spawn_call(event: dict[str, Any]) -> dict[str, Any] | None:
         "call_id": call_id.strip(),
         "session_turn": _audit_turn_id(event),
         "worker_role": worker_role,
+        "flash": worker_role == "flash",
         "luna": worker_role == "luna",
         "terra": worker_role == "terra",
         "route": route_matches[0] if len(route_matches) == 1 else None,
@@ -1724,6 +1776,11 @@ def _audit_activity_thread(payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _audit_is_flash(info: dict[str, Any] | None) -> bool:
+    role = info.get("agent_role") if info else None
+    return isinstance(role, str) and WORKER_ROLE_ALIASES.get(role) == "flash"
+
+
 def _audit_is_luna(info: dict[str, Any] | None) -> bool:
     role = info.get("agent_role") if info else None
     return isinstance(role, str) and WORKER_ROLE_ALIASES.get(role) == "luna"
@@ -1735,11 +1792,12 @@ def _audit_is_terra(info: dict[str, Any] | None) -> bool:
 
 
 def _audit_is_worker(info: dict[str, Any] | None) -> bool:
-    return _audit_is_luna(info) or _audit_is_terra(info)
+    return _audit_is_flash(info) or _audit_is_luna(info) or _audit_is_terra(info)
 
 
 def _audit_is_role(info: dict[str, Any] | None, role: str) -> bool:
-    return _audit_is_luna(info) if role == "luna" else _audit_is_terra(info)
+    agent_role = info.get("agent_role") if info else None
+    return isinstance(agent_role, str) and WORKER_ROLE_ALIASES.get(agent_role) == role
 
 
 def _audit_is_root(info: dict[str, Any] | None) -> bool:
@@ -1783,6 +1841,14 @@ def _audit_luna_outcome(messages: Iterable[str]) -> tuple[str, dict[str, int] | 
     )
 
 
+def _audit_flash_outcome(messages: Iterable[str]) -> tuple[str, dict[str, int] | None]:
+    return _audit_outcome(
+        messages,
+        prefix=FLASH_OUTCOME_PREFIX,
+        pattern=FLASH_OUTCOME_PATTERN,
+    )
+
+
 def _audit_terra_outcome(messages: Iterable[str]) -> tuple[str, dict[str, int] | None]:
     return _audit_outcome(
         messages,
@@ -1792,7 +1858,7 @@ def _audit_terra_outcome(messages: Iterable[str]) -> tuple[str, dict[str, int] |
 
 
 def _audit_worker_protocol(messages: Iterable[str]) -> str:
-    """Classify the exact v9 protocol marker on a root completion."""
+    """Classify the current v10 or legacy v9 protocol marker on a root completion."""
 
     lines = [
         line
@@ -1802,9 +1868,13 @@ def _audit_worker_protocol(messages: Iterable[str]) -> str:
     ]
     if not lines:
         return "missing"
-    if len(lines) != 1 or lines[0] != WORKER_PROTOCOL_LINE:
+    if len(lines) != 1:
         return "invalid"
-    return "valid"
+    if lines[0] == WORKER_PROTOCOL_LINE:
+        return "v10"
+    if lines[0] == LEGACY_WORKER_PROTOCOL_LINE:
+        return "v9"
+    return "invalid"
 
 
 def _audit_worker_correction_report(
@@ -2358,7 +2428,11 @@ def audit_sessions(
             for session_key, turn_id in direct_root_turns
             if turn_id in root_turns_by_session.get(session_key, set())
         }
-        outcome_parser = _audit_luna_outcome if role == "luna" else _audit_terra_outcome
+        outcome_parser = {
+            "flash": _audit_flash_outcome,
+            "luna": _audit_luna_outcome,
+            "terra": _audit_terra_outcome,
+        }[role]
         for root_turn in completed_direct_turns:
             outcome_status, outcome = outcome_parser(
                 root_completion_messages.get(root_turn, set())
@@ -2419,12 +2493,13 @@ def audit_sessions(
             "lifecycle": lifecycle,
         }
 
-    role_audits = {role: audit_role(role) for role in ("luna", "terra")}
+    role_audits = {role: audit_role(role) for role in WORKER_ROLES}
 
     # v8 turn counters intentionally do not feed the v7 session lifecycle or
     # concurrency code above. A reused Worker may therefore retain one session
     # while exposing multiple terminal turns here.
     worker_turns: dict[str, dict[str, dict[str, Any]]] = {
+        "flash": {},
         "luna": {},
         "terra": {},
     }
@@ -2433,13 +2508,10 @@ def audit_sessions(
             continue
         session_key = record["session_key"]
         info = sessions.get(session_key)
-        role = (
-            "luna"
-            if _audit_is_luna(info)
-            else "terra"
-            if _audit_is_terra(info)
-            else None
-        )
+        agent_role = info.get("agent_role") if info else None
+        role = WORKER_ROLE_ALIASES.get(agent_role) if isinstance(agent_role, str) else None
+        if role not in WORKER_ROLES:
+            role = None
         turn_id = _audit_turn_id(record["event"])
         if role is None or not turn_id:
             continue
@@ -2648,8 +2720,12 @@ def audit_sessions(
     )
     result["root_turns_with_worker"] = len(worker_root_turns)
     result["successful_root_turns_with_worker"] = len(successful_worker_root_turns)
-    result["mixed_worker_root_turns"] = len(
-        role_audits["luna"]["root_turns"] & role_audits["terra"]["root_turns"]
+    root_roles: dict[tuple[str, str], set[str]] = {}
+    for role, role_audit in role_audits.items():
+        for root_turn in role_audit["root_turns"]:
+            root_roles.setdefault(root_turn, set()).add(role)
+    result["mixed_worker_root_turns"] = sum(
+        len(roles) > 1 for roles in root_roles.values()
     )
 
     combined_lifecycle = [
@@ -2699,9 +2775,7 @@ def audit_sessions(
         return peak
 
     root_lifecycles: dict[str, dict[str, list[tuple[datetime, str, str]]]] = {
-        "luna": {},
-        "terra": {},
-        "worker": {},
+        role: {} for role in (*WORKER_ROLES, "worker")
     }
     for role, role_audit in role_audits.items():
         for when, event_kind, session_key in role_audit["lifecycle"]:
@@ -2714,7 +2788,7 @@ def audit_sessions(
             root_lifecycles["worker"].setdefault(root_session, []).append(
                 (when, event_kind, f"{role}:{session_key}")
             )
-    for role in ("luna", "terra", "worker"):
+    for role in (*WORKER_ROLES, "worker"):
         result[f"root_{role}_peak_concurrency"] = max(
             (lifecycle_peak(lifecycle) for lifecycle in root_lifecycles[role].values()),
             default=0,
@@ -2761,7 +2835,8 @@ def audit_sessions(
             named_worker_root_turns.add(root_turn)
             root_turn_by_spawn[call_id] = root_turn
 
-    v9_root_turns: set[tuple[str, str]] = set()
+    protocol_root_turns: set[tuple[str, str]] = set()
+    protocol_versions: dict[tuple[str, str], str] = {}
     protocol_candidates = set(named_worker_root_turns)
     for root_turn, messages in root_completion_messages.items():
         if (
@@ -2774,9 +2849,11 @@ def audit_sessions(
         protocol_status = _audit_worker_protocol(messages)
         correction_status, _correction = _audit_worker_correction_report(messages)
         if root_turn in named_worker_root_turns:
-            if protocol_status == "valid":
+            if protocol_status in {"v9", "v10"}:
                 result["worker_protocol_reports_valid"] += 1
-                v9_root_turns.add(root_turn)
+                result[f"worker_protocol_reports_{protocol_status}"] += 1
+                protocol_root_turns.add(root_turn)
+                protocol_versions[root_turn] = protocol_status
             elif protocol_status == "missing":
                 result["worker_protocol_reports_missing"] += 1
             else:
@@ -2803,13 +2880,14 @@ def audit_sessions(
         if not followup or not isinstance(worker_session, str):
             continue
         worker_info = sessions.get(worker_session)
+        agent_role = worker_info.get("agent_role") if worker_info else None
         role = (
-            "luna"
-            if _audit_is_luna(worker_info)
-            else "terra"
-            if _audit_is_terra(worker_info)
+            WORKER_ROLE_ALIASES.get(agent_role)
+            if isinstance(agent_role, str)
             else None
         )
+        if role not in WORKER_ROLES:
+            role = None
         if role is None:
             continue
         assigned = assigned_followup_turns.setdefault(worker_session, set())
@@ -2863,14 +2941,14 @@ def audit_sessions(
             }
         )
 
-    v9_followup_turn_keys: set[str] = set()
-    v9_correction_totals = {"started": 0, "completed": 0, "failed": 0}
-    for root_turn in v9_root_turns:
+    protocol_followup_turn_keys: set[str] = set()
+    protocol_correction_totals = {"started": 0, "completed": 0, "failed": 0}
+    for root_turn in protocol_root_turns:
         report_status, correction = _audit_worker_correction_report(
             root_completion_messages.get(root_turn, set())
         )
         associated_followups = associated_followups_by_root.get(root_turn, [])
-        v9_followup_turn_keys.update(
+        protocol_followup_turn_keys.update(
             followup["turn_key"]
             for followup in associated_followups
             if isinstance(followup.get("turn_key"), str)
@@ -2886,22 +2964,22 @@ def audit_sessions(
             result["worker_correction_reports_invalid"] += 1
             continue
         result["worker_correction_reports_valid"] += 1
-        for field in v9_correction_totals:
-            v9_correction_totals[field] += correction[field]
+        for field in protocol_correction_totals:
+            protocol_correction_totals[field] += correction[field]
         result["protocol_worker_reuse_policy_violations"] += correction[
             "violations"
         ]
 
-    legacy_correction_turn_keys = correction_turn_keys - v9_followup_turn_keys
+    legacy_correction_turn_keys = correction_turn_keys - protocol_followup_turn_keys
     result["worker_correction_turns_started"] = (
-        len(legacy_correction_turn_keys) + v9_correction_totals["started"]
+        len(legacy_correction_turn_keys) + protocol_correction_totals["started"]
     )
     result["worker_correction_turns_completed"] = (
         sum(
             turn_index[turn_key]["completed"]
             for turn_key in legacy_correction_turn_keys
         )
-        + v9_correction_totals["completed"]
+        + protocol_correction_totals["completed"]
     )
     result["worker_correction_turns_failed"] = (
         sum(
@@ -2909,11 +2987,11 @@ def audit_sessions(
             and turn_index[turn_key]["interrupted"]
             for turn_key in legacy_correction_turn_keys
         )
-        + v9_correction_totals["failed"]
+        + protocol_correction_totals["failed"]
     )
 
     for root_turn, interrupted_turns in direct_interrupted_turns.items():
-        if root_turn not in v9_root_turns:
+        if root_turn not in protocol_root_turns:
             continue
         report_status, report = _audit_worker_interruption(
             root_completion_messages.get(root_turn, set())
@@ -2927,11 +3005,17 @@ def audit_sessions(
         elif sum(report.values()) != len(interrupted_turns):
             result["protocol_worker_interrupt_reports_invalid"] += 1
 
-    expected_routes = route_expectations or WORKER_ROUTE_EXPECTATIONS
+    current_expected_routes = route_expectations or WORKER_ROUTE_EXPECTATIONS
     for call_id, spawn in spawn_calls.items():
         role = spawn.get("worker_role")
         if spawn.get("failed") or role not in role_audits:
             continue
+        root_turn = root_turn_by_spawn.get(call_id)
+        expected_routes = (
+            LEGACY_WORKER_ROUTE_EXPECTATIONS
+            if protocol_versions.get(root_turn) == "v9" or role in {"luna", "terra"}
+            else current_expected_routes
+        )
         message_route = spawn.get("route")
         task_name_route, task_name_invalid = _audit_task_name_route(
             spawn.get("task_name"), expected_routes
@@ -2944,24 +3028,24 @@ def audit_sessions(
         )
         if route_invalid:
             result["worker_route_reports_invalid"] += 1
-            if root_turn_by_spawn.get(call_id) in v9_root_turns:
+            if root_turn in protocol_root_turns:
                 result["protocol_worker_route_reports_invalid"] += 1
         if not route:
             result["route_units_unknown"] += 1
-            if root_turn_by_spawn.get(call_id) in v9_root_turns:
+            if root_turn in protocol_root_turns:
                 result["protocol_route_units_unknown"] += 1
             continue
         result["route_units_reported"] += 1
         expected_role = expected_routes.get(route)
         if expected_role is None:
             result["route_units_unknown"] += 1
-            if root_turn_by_spawn.get(call_id) in v9_root_turns:
+            if root_turn in protocol_root_turns:
                 result["protocol_route_units_unknown"] += 1
         elif expected_role == role:
             result["route_units_matched"] += 1
         else:
             result["route_units_mismatched"] += 1
-            if root_turn_by_spawn.get(call_id) in v9_root_turns:
+            if root_turn in protocol_root_turns:
                 result["protocol_route_units_mismatched"] += 1
 
     for root_turn, messages in root_completion_messages.items():
@@ -2969,7 +3053,7 @@ def audit_sessions(
         if root_turn in direct_worker_root_turns:
             if route_status != "missing":
                 result["worker_route_reports_invalid"] += 1
-                if root_turn in v9_root_turns:
+                if root_turn in protocol_root_turns:
                     result["protocol_worker_route_reports_invalid"] += 1
         elif route_status == "valid":
             result["root_turns_without_worker_reason_report"] += 1
@@ -3135,7 +3219,6 @@ def check_worker_session_policy(session_audit: dict[str, Any]) -> list[dict[str,
 
     checks: list[dict[str, Any]] = []
     worker_peak = session_audit.get("root_worker_peak_concurrency", 0)
-    luna_peak = session_audit.get("root_luna_peak_concurrency", 0)
     nested = session_audit.get("worker_nested", 0)
     mismatched = session_audit.get("protocol_route_units_mismatched", 0)
     unknown = session_audit.get("protocol_route_units_unknown", 0)
@@ -3161,17 +3244,6 @@ def check_worker_session_policy(session_audit: dict[str, Any]) -> list[dict[str,
                 section="sessions",
                 expected=8,
                 value=worker_peak,
-            )
-        )
-    if isinstance(luna_peak, int) and luna_peak > 5:
-        checks.append(
-            check(
-                "warning",
-                "luna-concurrency-over-limit",
-                f"Luna root-session peak concurrency exceeded 5: {luna_peak}",
-                section="sessions",
-                expected=5,
-                value=luna_peak,
             )
         )
     if isinstance(nested, int) and nested > 0:
@@ -3219,7 +3291,7 @@ def check_worker_session_policy(session_audit: dict[str, Any]) -> list[dict[str,
             check(
                 "warning",
                 "worker-protocol-report-invalid",
-                f"Invalid Worker v9 protocol reports detected: {protocol_invalid}",
+                f"Invalid Worker protocol reports detected: {protocol_invalid}",
                 section="sessions",
                 value=protocol_invalid,
             )
@@ -3229,7 +3301,7 @@ def check_worker_session_policy(session_audit: dict[str, Any]) -> list[dict[str,
             check(
                 "warning",
                 "worker-correction-report-missing",
-                "Observed Worker followups are missing a v9 correction report: "
+                "Observed Worker followups are missing a correction report: "
                 f"{correction_missing}",
                 section="sessions",
                 value=correction_missing,
@@ -3240,7 +3312,7 @@ def check_worker_session_policy(session_audit: dict[str, Any]) -> list[dict[str,
             check(
                 "warning",
                 "worker-correction-report-invalid",
-                f"Invalid Worker v9 correction reports detected: {correction_invalid}",
+                f"Invalid Worker correction reports detected: {correction_invalid}",
                 section="sessions",
                 value=correction_invalid,
             )

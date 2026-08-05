@@ -11,8 +11,8 @@ Use red -> green feedback to build one vertical behavior slice at a time.
 
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
 
-- Prefer `luna_worker` with `Route: tdd/tests` for independent test inventory, focused test authoring, and test execution that returns red/green evidence.
-- Route only a bounded Heavy Lane implementation loop to `terra_worker` with `Route: tdd/implementation` after the main agent fixes the public seam, behavior contract, and acceptance criteria; keep design, coordination, integration, and final validation with the main agent.
+- Use `deepseek_v4_flash_worker` with `Route: tdd/tests` for independent test inventory, focused test authoring, and test execution that returns red/green evidence.
+- Route only a bounded implementation loop to `deepseek_v4_flash_worker` with `Route: tdd/implementation` after the main agent fixes the public seam, behavior contract, and acceptance criteria; keep design, coordination, integration, and final validation with the main agent.
 
 ## Before Writing Tests
 

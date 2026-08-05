@@ -25,16 +25,16 @@ File count is a signal, not a hard boundary. A one-file security change is Heavy
 ## Worker-first Delegation
 
 Worker scheduling is a coverage gate after risk classification, not an optional optimization. For every
-non-simple engineering task, the main agent must classify the risk lane and route eligible execution to
-direct Workers before doing that work itself. A simple task is a clear, isolated one-step action expected
-to finish within 45 seconds; it may remain direct after the scan. Work expected to require at least 2
-substantive tool steps or more than 45 seconds must use a Worker unless an exclusion below applies.
+engineering task, the main agent must classify the risk lane and route each safely delegable, bounded,
+independently verifiable execution unit to a direct Worker before doing that work itself, regardless of
+task size or expected duration. Direct main-agent execution is limited to the exclusions below or work
+that cannot be made into an objectively verifiable Worker unit.
 
-Use `luna_worker` for clear routine units such as inventory, contract tracing, test authoring or execution,
-read-only research, focused validation, and isolated local changes. Use `terra_worker` for bounded Heavy
-Lane implementation after the main agent has resolved architecture, product, dependency, migration, and
-release decisions. Terra complexity means a larger implementation unit with fixed interfaces and an
-objective check, not an invitation to delegate ambiguity.
+Use `deepseek_v4_flash_worker` for clear, bounded, independently verifiable units such as inventory,
+contract tracing, test authoring or execution, read-only research, focused validation, isolated local
+changes, and bounded Heavy Lane implementation. The main agent resolves architecture, product,
+dependency, migration, and release decisions before dispatch; a larger implementation unit still needs
+fixed interfaces and an objective check, not delegated ambiguity.
 
 ### Work-unit coverage
 
@@ -71,10 +71,10 @@ applies only to the explicitly allowed write paths and named mutable state withi
 State` and `Git Boundary` are required rather than inferred; a read-only unit uses `N/A` where a field
 does not apply. The Worker must not guess an omitted boundary.
 
-Every `spawn_agent` call governed by this workflow must set `agent_type` explicitly to either
-`luna_worker` or `terra_worker`, according to the selected route. Never omit `agent_type`, use the generic
-default Worker for a routed unit, or infer a role afterward from the unit's complexity. The task message
-must contain the exact `Route:` line so the runtime log records both the selected role and route.
+Every `spawn_agent` call governed by this workflow must set `agent_type` explicitly to
+`deepseek_v4_flash_worker`. Never omit `agent_type`, use the generic default Worker for a routed unit, or
+infer a role afterward from the unit's complexity. The task message must contain the exact `Route:` line so
+the runtime log records both the selected Worker and route.
 
 Because Codex may encrypt the logged task message, `task_name` must also begin with an auditable route
 prefix: `route__<skill>__<phase>__<purpose>`. Convert hyphens in the route to underscores. For example,
@@ -149,15 +149,15 @@ corresponding terminal report immediately instead of waiting for other work or c
 
 ### Scheduling and parallelism
 
-Within each root session, at most 8 direct Worker threads may be open concurrently, excluding the main
-thread, and at most 5 may be `luna_worker`. These per-root peaks are cap-enforced. Aggregate/global peaks across roots are informational diagnostics only; they do not redefine the per-root caps. When Luna and Terra
-work are both queued, preserve up to 3 slots for Terra; Terra may use additional idle slots when no Luna
-unit is waiting. The main agent closes or reuses completed threads and queues additional units until a slot
-is free. Do not bypass any cap through nested or indirect workers.
+Within each root session, at most 8 direct `deepseek_v4_flash_worker` threads may be open concurrently,
+excluding the main thread. This per-root peak is cap-enforced. Aggregate/global peaks across roots are
+informational diagnostics only; they do not redefine the per-root cap. The main agent closes or reuses
+completed threads and queues additional units until a slot is free. Do not bypass the cap through nested or
+indirect workers.
 
-Duration boundaries are advisory planning guidance: when practical, split a Luna unit expected to exceed
-10 minutes or a Terra unit expected to exceed 30 minutes before dispatch. These are not mechanical timeouts,
-and an ordinary long turn is not an interruption reason.
+Duration boundaries are advisory planning guidance: when practical, split a Worker unit expected to exceed
+30 minutes before dispatch. This is not a mechanical timeout, and an ordinary long turn is not an
+interruption reason.
 
 Parallel units must have disjoint write paths, mutable state/resources, and validation ownership. Shared
 generated outputs, fixtures, databases, ports, services, credentials, or validation commands count as
@@ -170,8 +170,8 @@ or `fork_turns = "all"`; prompts must remain self-contained and bounded.
 ### Scope and exclusions
 
 The main agent owns architecture, product, dependency, migration, and release decisions. A Worker may
-collect side-effect-free evidence for those decisions. Terra may implement a resulting bounded Heavy Lane
-unit only after the main agent fixes its interfaces, allowed paths, exclusions, and verification.
+collect side-effect-free evidence for those decisions and may implement a resulting bounded Heavy Lane unit
+only after the main agent fixes its interfaces, allowed paths, exclusions, and verification.
 
 Database queries and mutations, security behavior, permission changes, production operations, uploads,
 releases, destructive actions, and external Git or platform mutations remain with the main agent. A domain
@@ -201,7 +201,7 @@ still fails, classify the terminal result according to the rules below.
 Every completed root turn that used a named Worker appends exactly one final, unencrypted protocol marker:
 
 ```text
-Worker 协议：version=9
+Worker 协议：version=10
 ```
 
 When a same-Worker correction or an invalid Worker reuse occurred, append exactly one correction marker as
@@ -215,17 +215,15 @@ For this marker, `started` counts associated followup turns that started, `viola
 followup turns that violated the single-correction reuse rule, and the associated followup-turn count is
 `started + violations`. The terminal accounting invariant is `completed + failed = started`.
 Followup messages may be encrypted, so Doctor reconciles this unencrypted final marker instead of reading followup
-plaintext. Legacy roots without the v9 marker remain historical/informational and are not v9 protocol
-compliance failures.
+plaintext. Historical roots without the v10 marker remain informational and are not v10 protocol
+compliance failures. Doctor parses v9 Luna/Terra roots only as historical compatibility data.
 
-The v9 protocol marker does not relax the existing conditional reports. A direct Worker interruption must
-append the exact interruption line above once. A completed root turn that used Luna must append exactly one
-Luna acceptance line, and one that used Terra must append exactly one Terra acceptance line; a mixed turn
-appends both role lines:
+The v10 protocol marker does not relax the existing conditional reports. A direct Worker interruption must
+append the exact interruption line above once. A completed root turn that used
+`deepseek_v4_flash_worker` must append exactly one Flash acceptance line:
 
 ```text
-Luna 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
-Terra 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
+Flash 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>
 ```
 
 Classify each terminal Worker unit during that review:
@@ -238,11 +236,12 @@ Classify each terminal Worker unit during that review:
 For completed root turns that used a role, the required applicable acceptance line records the reviewed
 work-unit totals. Keep each line exact and do not substitute prose for its machine-readable fields.
 
-Count work units, including queued units run by reusing an existing Worker thread. Assign each unit to the
-role passed in that unit's `spawn_agent.agent_type`; never reconstruct the role from its task, model, name,
-or result. Each role's four values cover every terminal unit accepted for that role, and their combined sum
-must equal the number of terminal named-Worker units. A failed spawn that never creates a thread is an
-operational caveat, not a work unit. If a non-simple completed root turn uses no Worker, append exactly one
+Count work units, including queued units run by reusing an existing Worker thread. Assign each unit to
+`deepseek_v4_flash_worker` only when that exact value was passed in `spawn_agent.agent_type`; never
+reconstruct the role from its task, model, name, or result. Flash's four values cover every terminal unit
+accepted for that Worker, and their sum must equal the number of terminal named-Worker units. A failed spawn
+that never creates a thread is an operational caveat, not a work unit. If a completed root turn contains
+safely delegable engineering execution but uses no Worker, append exactly one
 line with the applicable reason:
 
 ```text
@@ -336,14 +335,13 @@ Use `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doct
 
 Full Doctor output is grouped into `Skills`, `Worktrees`, and `Sessions`. Use repeatable `--section skills`, `--section worktrees`, or `--section sessions` with `--full` to limit scanning and output. Session completion counts are deduplicated across log files by `turn_id`; `raw_completed` and `duplicates_skipped` keep the source volume visible.
 
-Session reports expose symmetric Luna and Terra lifecycle and work-unit outcomes from the exact
-final-answer acceptance lines. Report version 9 also exposes per-root Worker concurrency peaks, aggregate
-global peaks for information, mixed-role root turns, route matches, route mismatches, unknown routes, and
-valid no-delegation reasons. Per-root peaks enforce the Worker caps; global peaks are informational.
-Historical missing outcome lines and roots without the v9 protocol marker remain informational; nested
-Workers, per-root concurrency overruns, route mismatches, and invalid route reports produce session
-warnings. The legacy `successful_root_turns_with_luna` field retains its v6 meaning: a direct Luna child
-completed, not that its result was adopted.
+Session reports expose Flash lifecycle and work-unit outcomes from the exact final-answer acceptance line.
+Report version 10 also exposes per-root Worker concurrency peaks, aggregate global peaks for information,
+route matches, route mismatches, unknown routes, and valid no-delegation reasons. Per-root peaks enforce the
+Worker cap; global peaks are informational. Historical missing outcome lines and roots without the v10
+protocol marker remain informational; nested Workers, per-root concurrency overruns, route mismatches, and
+invalid route reports produce session warnings. Doctor continues to parse v9 Luna/Terra sessions as
+historical compatibility data; they do not define active dispatch requirements.
 
 Document gardening is an optional section and is not included in the default full scan. Run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full --section docs --repo-root <repo>` only when the documentation-gardening workflow calls for it.
 

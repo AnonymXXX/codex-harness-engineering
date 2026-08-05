@@ -78,15 +78,15 @@ class SkillIndexTests(unittest.TestCase):
             skill.mkdir()
             (skill / "SKILL.md").write_text(
                 "---\nname: sample-route\ndescription: sample\n---\n\n"
-                "- Use `luna_worker` with `Route: sample-route/evidence`.\n"
-                "- Use `terra_worker` with `Route: sample-route/implementation`.\n",
+                "- Use `deepseek_v4_flash_worker` with `Route: sample-route/evidence`.\n"
+                "- Use `deepseek_v4_flash_worker` with `Route: sample-route/implementation`.\n",
                 encoding="utf-8",
             )
 
             routes, checks = doctor.discover_worker_routes(skills_root)
 
-        self.assertEqual("luna", routes["sample-route/evidence"])
-        self.assertEqual("terra", routes["sample-route/implementation"])
+        self.assertEqual("flash", routes["sample-route/evidence"])
+        self.assertEqual("flash", routes["sample-route/implementation"])
         self.assertEqual("worker-routes-discovered", checks[0]["code"])
 
     def test_worker_route_discovery_does_not_infer_role_from_route_name(self) -> None:
@@ -2759,6 +2759,91 @@ class SessionAuditTests(unittest.TestCase):
             {item["code"] for item in doctor.check_worker_session_policy(audit)},
         )
 
+    def test_v10_flash_worker_protocol_routes_and_outcomes(self) -> None:
+        root_id, flash_id, root_turn = "v10-root", "v10-flash", "v10-root-turn"
+        self.write(
+            self.root / "v10-root.jsonl",
+            [
+                self.metadata(self.now, root_id),
+                {
+                    "timestamp": self.stamp(self.now),
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "spawn_agent",
+                        "call_id": "v10-spawn",
+                        "arguments": json.dumps(
+                            {
+                                "agent_type": "deepseek_v4_flash_worker",
+                                "task_name": "route__tdd__tests__red_evidence",
+                                "message": "Route: tdd/tests\nObjective: fixture",
+                            }
+                        ),
+                        "turn_id": root_turn,
+                    },
+                },
+                self.event(
+                    self.now,
+                    "event_msg",
+                    {
+                        "type": "sub_agent_activity",
+                        "event_id": "v10-spawn",
+                        "agent_thread_id": flash_id,
+                        "kind": "started",
+                        "turn_id": root_turn,
+                    },
+                ),
+                self.event(
+                    self.now + timedelta(seconds=3),
+                    "event_msg",
+                    {
+                        "type": "task_complete",
+                        "turn_id": root_turn,
+                        "last_agent_message": (
+                            "Worker 协议：version=10\n"
+                            "Flash 验收：adopted=1 partial=0 rejected=0 failed=0"
+                        ),
+                    },
+                ),
+            ],
+        )
+        self.write(
+            self.root / "v10-flash.jsonl",
+            [
+                self.metadata(
+                    self.now,
+                    flash_id,
+                    parent=root_id,
+                    depth=1,
+                    role="deepseek_v4_flash_worker",
+                ),
+                self.event(
+                    self.now + timedelta(seconds=1),
+                    "event_msg",
+                    {"type": "task_started", "turn_id": "v10-flash-turn"},
+                ),
+                self.event(
+                    self.now + timedelta(seconds=2),
+                    "event_msg",
+                    {"type": "task_complete", "turn_id": "v10-flash-turn"},
+                ),
+            ],
+        )
+
+        audit = doctor.audit_sessions(self.root, 7)
+
+        self.assertEqual(1, audit["flash_started"])
+        self.assertEqual(1, audit["flash_completed"])
+        self.assertEqual(1, audit["flash_units_adopted"])
+        self.assertEqual(1, audit["flash_units_reported"])
+        self.assertEqual(1, audit["worker_protocol_reports_v10"])
+        self.assertEqual(0, audit["worker_protocol_reports_v9"])
+        self.assertEqual(1, audit["route_units_matched"])
+        self.assertEqual(
+            {"worker-session-policy-ok"},
+            {item["code"] for item in doctor.check_worker_session_policy(audit)},
+        )
+
     def test_v9_protocol_marker_must_be_an_exact_root_line(self) -> None:
         self.write_v9_reuse_case(
             name="v9-invalid-protocol",
@@ -2834,7 +2919,7 @@ class SessionAuditTests(unittest.TestCase):
         self.assertEqual(6, audit["root_luna_peak_concurrency"])
         self.assertEqual(3, audit["root_terra_peak_concurrency"])
         self.assertEqual(
-            {"worker-concurrency-over-limit", "luna-concurrency-over-limit"},
+            {"worker-concurrency-over-limit"},
             {item["code"] for item in doctor.check_worker_session_policy(audit)},
         )
 
@@ -3208,7 +3293,6 @@ class SessionAuditTests(unittest.TestCase):
         self.assertEqual(
             {
                 "worker-concurrency-over-limit",
-                "luna-concurrency-over-limit",
                 "nested-worker-detected",
                 "worker-route-mismatch",
                 "worker-route-unknown",
@@ -3257,7 +3341,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("worktrees", payload["section_summaries"])
         self.assertIn("sessions", payload["section_summaries"])
         self.assertNotIn("docs", payload["section_summaries"])
-        self.assertEqual(9, payload["version"])
+        self.assertEqual(10, payload["version"])
         self.assertEqual(0, doctor.report_exit_code(report, strict=False))
         self.assertEqual(1, doctor.report_exit_code(report, strict=True))
 
@@ -3334,7 +3418,7 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(value, payload["session_audit"][field])
             if field.startswith(("luna_", "terra_", "worker_", "route_", "root_")):
                 self.assertIn(f"{field}={value}", rendered)
-        self.assertEqual(9, payload["version"])
+        self.assertEqual(10, payload["version"])
 
     def test_docs_section_is_explicit_and_rendered(self) -> None:
         parser = doctor.build_parser()

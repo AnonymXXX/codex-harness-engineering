@@ -11,8 +11,8 @@ Do not guess. Build a tight feedback loop, then fix the smallest proven cause.
 
 Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
 
-- Prefer `luna_worker` with `Route: diagnosing-bugs/evidence` for independently bounded reproduction, minimization, evidence gathering, hypothesis checks, and regression-test work; return commands, traces, and test results for main-agent review.
-- Route only a bounded Heavy Lane fix to `terra_worker` with `Route: diagnosing-bugs/fix` after evidence supports the cause; keep diagnosis decisions, scope, integration, and final validation with the main agent.
+- Use `deepseek_v4_flash_worker` with `Route: diagnosing-bugs/evidence` for independently bounded reproduction, minimization, evidence gathering, hypothesis checks, and regression-test work; return commands, traces, and test results for main-agent review.
+- Route only a bounded fix to `deepseek_v4_flash_worker` with `Route: diagnosing-bugs/fix` after evidence supports the cause; keep diagnosis decisions, scope, integration, and final validation with the main agent.
 
 ## Process
 
