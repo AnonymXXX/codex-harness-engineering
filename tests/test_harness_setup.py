@@ -271,6 +271,23 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("Conditional reports remain required", recovery)
         self.assertNotIn("optional interruption and Flash acceptance lines", recovery)
 
+    def test_worker_cross_provider_fork_context_contract(self) -> None:
+        workflow = (
+            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
+        ).read_text(encoding="utf-8")
+        global_agents = (ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
+        harness_skill = (
+            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
+
+        for content in (workflow, global_agents, harness_skill, recovery):
+            normalized = " ".join(content.split())
+            self.assertIn('fork_turns = "1"', normalized)
+            self.assertIn("parent context", normalized)
+        self.assertIn('fork_turns = "none"', " ".join(workflow.split()))
+        self.assertIn('fork_turns = "all"', " ".join(workflow.split()))
+
     def test_worker_protocol_v10_documents_root_scope_legacy_and_duration_advice(self) -> None:
         workflow = (
             ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"

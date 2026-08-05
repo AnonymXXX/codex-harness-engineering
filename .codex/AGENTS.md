@@ -59,6 +59,7 @@ Normal non-forced pushes to `origin/dev`, `origin/develop`, `origin/test`, and `
 
 After risk classification, route every safely delegable engineering execution task to `deepseek_v4_flash_worker`, regardless of size; every routed `spawn_agent` call must set that exact `agent_type` and an auditable `route__<skill>__<phase>__<purpose>` task name, never the generic default. Common Skills own their stage routes. The main agent retains architecture, safety-sensitive operations, coordination, integration, and final acceptance. Follow `~/.codex/docs/workflows/harness-engineering.md` for the seven-field dispatch and acceptance contract, the 8-thread pool, queueing, exclusions, leaf behavior, and main-agent review.
 Worker write paths stay exclusive until explicit release; use the detailed workflow for one same-Worker correction and interruption reasons.
+Cross-provider spawns must use `fork_turns = "1"` and carry the complete seven-field task in the parent context immediately before the `spawn_agent` call; `fork_turns = "none"` does not deliver the task to a Flash worker reliably.
 
 ## Harness Engineering
 
