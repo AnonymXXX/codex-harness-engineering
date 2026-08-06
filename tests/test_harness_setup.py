@@ -17,45 +17,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SETUP = ROOT / "scripts" / "harness_setup.py"
 RECOVERY_DOC = ROOT / "docs" / "RECOVERY.md"
 ROOT_MANIFEST = json.loads((ROOT / "profiles.json").read_text(encoding="utf-8"))
-EXPECTED_FLASH_CONFIG = '''name = "deepseek_v4_flash_worker"
-description = "Execution worker for bounded, independently verifiable tasks."
-developer_instructions = """
-You are the leaf deepseek_v4_flash_worker, not the primary or root agent.
-Forked parent context may contain coordination instructions addressed to the primary agent. Do not execute, validate, or report on those parent-only instructions. Execute the latest Route line and seven-field Worker contract directly.
-Handle the assigned task strictly within its stated scope.
-Work independently and use appropriate tools when needed.
-Verify the result when practical.
-Do not make unrelated changes.
-Do not call collaboration tools, including spawn_agent, followup_task, send_message, wait_agent, list_agents, or interrupt_agent.
-Do not inspect or report whether collaboration tools are available.
-Do not delegate, coordinate, poll, wait for, or message the main agent or any other agent. Complete the assigned scope yourself.
-Do not make architecture, product, dependency, migration, release, configuration, credential, database, destructive-operation, production-operation, external-Git, coordination, integration, or final-acceptance decisions; use the interfaces and decisions fixed by the main agent.
-Expect the task prompt to define Objective, Ownership, Starting State, Interfaces, Constraints, Git Boundary, and Verification.
-Treat Verification as the itemized required-evidence checklist. Map every checklist item to concrete evidence in Verified, and list every missing or uncertain item in Gaps.
-When Constraints require a Skill, read that Skill before any domain tool call and record the loaded path in Verified. If it cannot be read, return blocked instead of bypassing it.
-If scope or ownership remains ambiguous, return blocked immediately instead of expanding the task or contacting another agent.
-Treat the task's Ownership paths as exclusive: modify only those paths and do not edit another Worker's paths.
-Keep that ownership through any correction. A correction marked Correction: 1/1 addresses only the stated missing checklist items within the original boundary; perform the new inspection needed to close them instead of merely restating the first response. Do not accept a second correction or unrelated work.
-Do not perform branch, push, tag, PR, or worktree operations unless Git Boundary explicitly authorizes them.
-Before reporting, record actual git status, the relevant diff or commit SHA, and the verification result.
-Return a concise report with exactly these headings: Status, Changes, Verified, Judgment Calls, and Gaps.
-Set Status to completed, blocked, or failed.
-"""
-model_provider = "deepseek"
-model = "deepseek-v4-flash"
-model_reasoning_effort = "max"
-
-[agents]
-enabled = false
-
-[model_providers.deepseek]
-name = "DeepSeek"
-base_url = "https://api.deepseek.com"
-wire_api = "responses"
-env_key = "DEEPSEEK_API_KEY"
-'''
-
-
 class HarnessSetupCliTests(unittest.TestCase):
     def run_raw(self, *args: str, source_root: Path = ROOT) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -117,357 +78,15 @@ class HarnessSetupCliTests(unittest.TestCase):
     def test_public_manifest_has_no_private_overlay_catalog(self) -> None:
         self.assertNotIn("overlay", ROOT_MANIFEST)
 
-    def test_global_agent_links_include_only_flash_worker(self) -> None:
+    def test_global_links_contain_no_custom_agent_configs(self) -> None:
         self.assertEqual(
-            [
-                {
-                    "source": ".codex/agents/deepseek-v4-flash-worker.toml",
-                    "destination": ".codex/agents/deepseek-v4-flash-worker.toml",
-                },
-            ],
+            [],
             [
                 entry
                 for entry in ROOT_MANIFEST["global_links"]
                 if entry["destination"].startswith(".codex/agents/")
             ],
         )
-
-    def test_flash_agent_config_matches_tracked_toml(self) -> None:
-        config = ROOT / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
-
-        self.assertEqual(EXPECTED_FLASH_CONFIG, config.read_text(encoding="utf-8"))
-
-    def test_worker_agent_configs_are_valid_toml_and_match_roles(self) -> None:
-        expected = {
-            "deepseek-v4-flash-worker.toml": (
-                "deepseek_v4_flash_worker",
-                "deepseek-v4-flash",
-                EXPECTED_FLASH_CONFIG,
-            ),
-        }
-
-        for filename, (role, model, expected_text) in expected.items():
-            with self.subTest(filename=filename):
-                config = ROOT / ".codex" / "agents" / filename
-                text = config.read_text(encoding="utf-8")
-
-                self.assertEqual(expected_text, text)
-                if tomllib is None:
-                    continue
-
-                parsed = tomllib.loads(text)
-                self.assertEqual(role, parsed["name"])
-                self.assertEqual(model, parsed["model"])
-                self.assertEqual("deepseek", parsed["model_provider"])
-                self.assertEqual("max", parsed["model_reasoning_effort"])
-                self.assertIs(parsed["agents"]["enabled"], False)
-                self.assertEqual("DeepSeek", parsed["model_providers"]["deepseek"]["name"])
-                self.assertEqual("https://api.deepseek.com", parsed["model_providers"]["deepseek"]["base_url"])
-                self.assertEqual("responses", parsed["model_providers"]["deepseek"]["wire_api"])
-                self.assertEqual("DEEPSEEK_API_KEY", parsed["model_providers"]["deepseek"]["env_key"])
-                self.assertIn("Starting State", parsed["developer_instructions"])
-                self.assertIn("Git Boundary", parsed["developer_instructions"])
-                self.assertIn("Correction: 1/1", parsed["developer_instructions"])
-                self.assertIn("not the primary or root agent", parsed["developer_instructions"])
-                self.assertIn("latest Route line and seven-field Worker contract", parsed["developer_instructions"])
-                self.assertIn("Do not inspect or report whether collaboration tools are available", parsed["developer_instructions"])
-
-    def test_core_worker_routes_are_declared_and_doctor_auditable(self) -> None:
-        routes = {
-            "diagnosing-bugs": {
-                "diagnosing-bugs/evidence": "flash",
-                "diagnosing-bugs/fix": "flash",
-            },
-            "tdd": {"tdd/tests": "flash", "tdd/implementation": "flash"},
-            "codebase-design": {
-                "codebase-design/evidence": "flash",
-                "codebase-design/implementation": "flash",
-            },
-            "develop-uniapp-miniapp": {
-                "develop-uniapp-miniapp/small-change": "flash",
-                "develop-uniapp-miniapp/complex-implementation": "flash",
-            },
-            "web-access": {"web-access/research": "flash"},
-            "git-auto-commit": {"git-auto-commit/inspect": "flash"},
-            "github-cli-ops": {"github-cli-ops/inventory": "flash"},
-            "release-ops": {"release-ops/inspect": "flash"},
-            "wechat-miniprogram-ci-upload": {
-                "wechat-miniprogram-ci-upload/preflight": "flash"
-            },
-        }
-        doctor_source = (
-            ROOT
-            / ".agents"
-            / "skills"
-            / "harness-engineering"
-            / "scripts"
-            / "harness_doctor.py"
-        ).read_text(encoding="utf-8")
-
-        for skill_name, expected in routes.items():
-            skill_text = (
-                ROOT / ".agents" / "skills" / skill_name / "SKILL.md"
-            ).read_text(encoding="utf-8")
-            for route, role in expected.items():
-                self.assertIn(f"Route: {route}", skill_text)
-                self.assertIn(f'"{route}": "{role}"', doctor_source)
-
-    def test_worker_routing_requires_explicit_agent_type(self) -> None:
-        workflow = (
-            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
-        ).read_text(encoding="utf-8")
-        global_agents = (ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
-        harness_skill = (
-            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-
-        for content in (workflow, global_agents, harness_skill):
-            normalized = " ".join(content.split())
-            self.assertIn("spawn_agent", normalized)
-            self.assertIn("agent_type", normalized)
-            self.assertIn("generic default", normalized)
-            self.assertIn("route__<skill>__<phase>__<purpose>", normalized)
-
-        self.assertIn("spawn_agent.agent_type", workflow)
-        self.assertIn("their sum", workflow)
-
-    def test_worker_dispatch_contract_covers_ownership_correction_and_interruptions(self) -> None:
-        workflow = (
-            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
-        ).read_text(encoding="utf-8")
-        skill = (
-            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
-        fields = (
-            "Objective",
-            "Ownership",
-            "Starting State",
-            "Interfaces",
-            "Constraints",
-            "Git Boundary",
-            "Verification",
-        )
-
-        self.assertIn("these seven", workflow)
-        for field in fields:
-            self.assertIn(f"`{field}`", workflow)
-        self.assertIn("Correction: 1/1", workflow)
-        self.assertIn("followup_task", workflow)
-        self.assertIn("new `spawn_agent`", workflow)
-        normalized_workflow = " ".join(workflow.split())
-        normalized_skill = " ".join(skill.split())
-        normalized_recovery = " ".join(recovery.split())
-        self.assertIn("itemized required-evidence checklist", normalized_workflow)
-        self.assertIn("gap-only delta", normalized_workflow)
-        self.assertIn("must not duplicate the Worker's assigned research", normalized_workflow)
-        self.assertIn("Never issue two consecutive `wait_agent` calls", normalized_workflow)
-        self.assertIn("itemized required-evidence checklist", normalized_skill)
-        self.assertIn("snapshot status before waiting", normalized_skill)
-        self.assertIn("itemized required-evidence checklist", normalized_recovery)
-        self.assertIn("gap-only same-Worker `followup_task`", normalized_recovery)
-        self.assertIn(
-            "Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>",
-            workflow,
-        )
-        self.assertIn("Worker 协议：version=10", workflow)
-        self.assertIn(
-            "Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>",
-            workflow,
-        )
-        for reason in ("overlap", "unsafe", "scope_violation", "user_redirect", "unresponsive"):
-            self.assertIn(f"`{reason}`", workflow)
-        self.assertIn("seven-field task contract", recovery)
-        self.assertIn("Correction: 1/1", recovery)
-        self.assertIn("Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>", recovery)
-        self.assertIn("Worker 协议：version=10", recovery)
-        self.assertIn(
-            "Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>",
-            recovery,
-        )
-        self.assertIn("Worker 协议：version=10", skill)
-        self.assertIn("Preserve the existing conditional reports", skill)
-        self.assertIn("does not relax the existing conditional reports", workflow)
-        self.assertIn("must append exactly one", workflow)
-        self.assertIn("required applicable acceptance line", workflow)
-        self.assertNotIn("companion lines remain optional", workflow)
-        self.assertIn("Conditional reports remain required", recovery)
-        self.assertNotIn("optional interruption and Flash acceptance lines", recovery)
-
-    def test_worker_first_fast_research_contract_bounds_main_work_and_waiting(self) -> None:
-        workflow = (
-            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
-        ).read_text(encoding="utf-8")
-        global_agents = (ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
-        harness_skill = (
-            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        web_access = (
-            ROOT / ".agents" / "skills" / "web-access" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        worker_config = (
-            ROOT / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
-        ).read_text(encoding="utf-8")
-        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
-
-        normalized_workflow = " ".join(workflow.split())
-        normalized_agents = " ".join(global_agents.split())
-        normalized_skill = " ".join(harness_skill.split())
-        normalized_web_access = " ".join(web_access.split())
-        normalized_worker_config = " ".join(worker_config.split())
-        normalized_recovery = " ".join(recovery.split())
-
-        self.assertIn("prerequisite-only phase", normalized_workflow)
-        self.assertIn("primary evidence owner", normalized_workflow)
-        self.assertIn("must not describe it as cross-validation", normalized_workflow)
-        self.assertIn("the next domain action is `spawn_agent`", normalized_workflow)
-        self.assertIn("no greater than `10000`", normalized_workflow)
-        self.assertIn("cumulative wait budget of 30 seconds", normalized_workflow)
-        self.assertIn("Every newly spawned follow-on unit receives its own correction budget", normalized_workflow)
-        self.assertIn("runtime status is `completed`", normalized_workflow)
-        self.assertIn("Acceptance quality is recorded only", normalized_workflow)
-
-        self.assertIn("prerequisite-only phase", normalized_agents)
-        self.assertIn("the next domain action is `spawn_agent`", normalized_agents)
-        self.assertIn("Do not reread the full Harness workflow", normalized_skill)
-        self.assertIn("primary evidence owner", normalized_skill)
-        self.assertIn("最长 10 秒", normalized_web_access)
-        self.assertIn("主要证据负责人", normalized_web_access)
-        self.assertIn("read that Skill before any domain tool call", normalized_worker_config)
-        self.assertIn("newly spawned follow-on unit", normalized_recovery)
-        self.assertIn("cumulative wait budget", normalized_recovery)
-
-    def test_web_access_fast_dispatch_is_self_contained_and_terminal_aware(self) -> None:
-        workflow = (
-            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
-        ).read_text(encoding="utf-8")
-        web_access = (
-            ROOT / ".agents" / "skills" / "web-access" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        routing = web_access.split("## Worker Routing", 1)[1].split("## 前置检查", 1)[0]
-        normalized_routing = " ".join(routing.split())
-        normalized_workflow = " ".join(workflow.split())
-
-        self.assertIn("Do not read the full Harness workflow before dispatch", normalized_routing)
-        self.assertIn("`spawn_agent`", normalized_routing)
-        self.assertIn("`agent_type = deepseek_v4_flash_worker`", normalized_routing)
-        self.assertIn('`fork_turns = "1"`', normalized_routing)
-        self.assertIn("seven-field contract", normalized_routing)
-        for field in (
-            "Objective",
-            "Ownership",
-            "Starting State",
-            "Interfaces",
-            "Constraints",
-            "Git Boundary",
-            "Verification",
-        ):
-            self.assertIn(f"`{field}`", normalized_routing)
-
-        self.assertIn(
-            "Worker will collect the primary evidence; the main agent will only review and synthesize",
-            normalized_routing,
-        )
-        self.assertIn(
-            "If `list_agents` reports the Worker as terminal or `completed`, do not call `wait_agent`",
-            normalized_routing,
-        )
-        self.assertIn(
-            "If `list_agents` reports the Worker as terminal or `completed`, do not call `wait_agent`",
-            normalized_workflow,
-        )
-
-    def test_worker_cross_provider_fork_context_contract(self) -> None:
-        workflow = (
-            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
-        ).read_text(encoding="utf-8")
-        global_agents = (ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
-        harness_skill = (
-            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
-
-        for content in (workflow, global_agents, harness_skill, recovery):
-            normalized = " ".join(content.split())
-            self.assertIn('fork_turns = "1"', normalized)
-            self.assertIn("parent context", normalized)
-        self.assertIn("must carry the task twice", " ".join(workflow.split()))
-        self.assertIn('fork_turns = "none"', " ".join(workflow.split()))
-        self.assertIn('fork_turns = "all"', " ".join(workflow.split()))
-        self.assertNotIn('Use `fork_turns = "none"` by default', workflow)
-        self.assertIn("[agents] enabled = false", " ".join(workflow.split()))
-        self.assertIn("[agents] enabled = false", " ".join(recovery.split()))
-        self.assertIn("never applies recursively to a Worker", global_agents)
-        self.assertIn("parent-only coordination instructions", workflow)
-        self.assertIn("parent-only coordination", recovery)
-
-    def test_worker_routing_covers_single_target_read_only_evidence(self) -> None:
-        workflow = (
-            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
-        ).read_text(encoding="utf-8")
-        global_agents = (ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
-        harness_skill = (
-            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        web_access = (
-            ROOT / ".agents" / "skills" / "web-access" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
-
-        for content in (workflow, global_agents, harness_skill, recovery):
-            normalized = " ".join(content.split())
-            self.assertIn("evidence-gathering", normalized)
-            self.assertIn("single", normalized)
-        self.assertIn("single repository, page, source, or question", workflow)
-        self.assertIn("even when no files are modified", workflow)
-        self.assertIn("single-target repository, page, source, and question", global_agents)
-        self.assertIn("单仓库、单页面、单来源或单问题", web_access)
-        self.assertIn("至少交给一个 Worker", web_access)
-        self.assertIn("简单单页或单仓库查询", web_access)
-        self.assertNotIn("multi-target research", web_access)
-        self.assertNotIn("简单单页查询，分治开销大于收益", web_access)
-        self.assertNotIn("safely delegable engineering execution", workflow)
-        self.assertNotIn("safely delegable engineering execution", global_agents)
-
-    def test_worker_protocol_v10_documents_root_scope_legacy_and_duration_advice(self) -> None:
-        workflow = (
-            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
-        ).read_text(encoding="utf-8")
-        skill = (
-            ROOT / ".agents" / "skills" / "harness-engineering" / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
-
-        self.assertIn("started + violations", workflow)
-        self.assertIn("completed + failed = started", workflow)
-        self.assertIn("Followup messages may be encrypted", workflow)
-        self.assertIn("unencrypted final marker", workflow)
-        self.assertIn(
-            "roots without the v10",
-            workflow,
-        )
-        self.assertIn("Within each root session", workflow)
-        self.assertIn("per-root peak is cap-enforced", workflow)
-        self.assertIn("Aggregate/global peaks across roots are", workflow)
-        self.assertIn("informational diagnostics only", workflow)
-        self.assertIn("30 minutes", workflow)
-        self.assertIn("not a mechanical timeout", workflow)
-        self.assertIn("Report version 10", workflow)
-        self.assertNotIn("Report version 7", workflow)
-
-        self.assertIn("Followup messages may be encrypted", skill)
-        self.assertIn("roots without v10 remain historical/informational", skill)
-        self.assertIn("beyond 30 minutes", skill)
-        self.assertIn("not a timeout or ordinary interruption reason", skill)
-
-        self.assertIn("started + violations", recovery)
-        self.assertIn("completed + failed = started", recovery)
-        self.assertIn("Followup messages may be encrypted", recovery)
-        self.assertIn("Worker caps are enforced per root session", recovery)
-        self.assertIn("aggregate/global peaks are informational", recovery)
-        self.assertIn("beyond 30 minutes", recovery)
-        self.assertIn("not a timeout or ordinary", recovery)
-        self.assertIn("interruption reason", recovery)
 
     def test_public_tree_has_no_internal_project_identifiers(self) -> None:
         forbidden = (
@@ -491,39 +110,6 @@ class HarnessSetupCliTests(unittest.TestCase):
                     findings.append(f"{relative}: {marker}")
 
         self.assertEqual([], findings)
-
-    def test_recovery_doc_documents_machine_local_agent_concurrency_contract(self) -> None:
-        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
-
-        self.assertIn(
-            "`[agents].max_concurrent_threads_per_session` setting is the maximum number of",
-            recovery,
-        )
-        self.assertIn("concurrent agent threads outside the main Codex thread", recovery)
-        self.assertIn(
-            "machine-specific `~/.codex/config.toml`",
-            recovery,
-        )
-        self.assertIn(
-            "[agents]\nenabled = true\nmax_concurrent_threads_per_session = 8",
-            recovery,
-        )
-        self.assertIn("total spawned-thread limit is `8`", recovery)
-        self.assertIn(
-            "must not create, copy, link, or automatically overwrite this file",
-            recovery,
-        )
-        self.assertIn("Codex reads the", recovery)
-        self.assertIn("setting only when a new task starts", recovery)
-
-    def test_recovery_doc_documents_worker_acceptance_contract(self) -> None:
-        recovery = RECOVERY_DOC.read_text(encoding="utf-8")
-
-        self.assertIn("seven-field task contract", recovery)
-        self.assertIn("structured response contract", recovery)
-        self.assertIn("dispatch Flash", recovery)
-        self.assertIn("one machine-readable", recovery)
-        self.assertIn("Flash dispatches", recovery)
 
     def test_install_leaves_machine_specific_codex_config_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -649,13 +235,6 @@ class HarnessSetupCliTests(unittest.TestCase):
             first = self.run_setup(home, "install", "--profile", "daily")
             self.assertEqual(first.returncode, 0, first.stderr or first.stdout)
             self.assertTrue((home / ".codex" / "AGENTS.md").is_symlink())
-            flash = home / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
-            self.assertTrue(flash.is_symlink())
-            self.assertEqual(
-                (ROOT / ".codex" / "agents" / "deepseek-v4-flash-worker.toml").resolve(),
-                flash.resolve(),
-            )
-            self.assertEqual(EXPECTED_FLASH_CONFIG, flash.read_text(encoding="utf-8"))
             self.assertTrue((home / ".agents" / "skills" / "harness-engineering").is_symlink())
             self.assertTrue((home / ".agents" / "skills" / "web-access").is_symlink())
             self.assertIn("validation: index=skipped(custom-home)", first.stdout)
@@ -664,20 +243,6 @@ class HarnessSetupCliTests(unittest.TestCase):
             second = self.run_setup(home, "install", "--profile", "daily")
             self.assertEqual(second.returncode, 0, second.stderr or second.stdout)
             self.assertIn("unchanged", second.stdout)
-            self.assertIn(f"unchanged: {flash.parent.resolve() / flash.name}", second.stdout)
-
-    def test_check_reports_missing_flash_agent_link(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            home = Path(tmp)
-            installed = self.run_setup(home, "install", "--profile", "core")
-            self.assertEqual(installed.returncode, 0, installed.stderr or installed.stdout)
-
-            flash = home / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
-            flash.unlink()
-            result = self.run_setup(home, "check", "--profile", "core")
-
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn(f"link: missing {flash.resolve()}", result.stderr)
 
     def test_real_home_install_runs_index_and_doctor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -800,7 +365,6 @@ class HarnessSetupCliTests(unittest.TestCase):
                 installed.resolve(),
                 (overlay / ".agents" / "skills" / "private-project-map").resolve(),
             )
-            self.assertTrue((home / ".codex" / "agents" / "deepseek-v4-flash-worker.toml").is_symlink())
             checked = self.run_setup(
                 home,
                 "check",
@@ -927,24 +491,6 @@ class HarnessSetupCliTests(unittest.TestCase):
             self.assertEqual(len(backups), 1)
             self.assertEqual(backups[0].read_text(encoding="utf-8"), "user-owned\n")
 
-    def test_conflicting_flash_agent_is_backed_up_before_linking(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            home = Path(tmp)
-            flash = home / ".codex" / "agents" / "deepseek-v4-flash-worker.toml"
-            flash.parent.mkdir(parents=True)
-            flash.write_text("user-owned\n", encoding="utf-8")
-
-            result = self.run_setup(home, "install", "--profile", "core")
-
-            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
-            self.assertTrue(flash.is_symlink())
-            self.assertEqual(EXPECTED_FLASH_CONFIG, flash.read_text(encoding="utf-8"))
-            backups = self.find_backup_entries(
-                home, Path(".codex/agents/deepseek-v4-flash-worker.toml")
-            )
-            self.assertEqual(len(backups), 1)
-            self.assertEqual(backups[0].read_text(encoding="utf-8"), "user-owned\n")
-
     def test_docs_check_rejects_inventory_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             source_root = Path(tmp)
@@ -978,10 +524,7 @@ class HarnessSetupCliTests(unittest.TestCase):
 
             missing = self.run_setup(home, "check", "--profile", "core")
             self.assertNotEqual(missing.returncode, 0)
-            self.assertIn(
-                f"link: missing {home.resolve() / '.codex/agents/deepseek-v4-flash-worker.toml'}",
-                missing.stderr,
-            )
+            self.assertIn("link: missing", missing.stderr)
 
             installed = self.run_setup(home, "install", "--profile", "core")
             self.assertEqual(installed.returncode, 0, installed.stderr or installed.stdout)

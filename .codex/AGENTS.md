@@ -55,12 +55,15 @@ For medium/large Git changes, use `~/.codex/docs/workflows/git-worktree.md`. Val
 
 Normal non-forced pushes to `origin/dev`, `origin/develop`, `origin/test`, and `origin/uat`, including known non-production CI or deployment effects, have built-in persistent authorization after project-required validation and integration preflight pass. A user-confirmed canonical project or domain policy may extend this only to an explicit repository allowlist and bounded existing non-production branches on `origin` under the same safeguards; see `~/.codex/docs/workflows/git-worktree.md`. A project rule or current-task instruction not to push overrides every persistent authorization. Other remotes, production targets or effects, tags, force pushes, and MR/PR creation or merge still require explicit authorization.
 
-## Subagent Delegation
+## Subagent Delegation (PAUSED)
 
-The main agent routes every safely delegable, bounded execution or evidence-gathering unit to `deepseek_v4_flash_worker` after request and risk classification, regardless of size, duration, target count, or whether files change; single-target repository, page, source, and question inspection are included. This routing obligation never applies recursively to a Worker. Every routed `spawn_agent` call must set that exact `agent_type` and an auditable `route__<skill>__<phase>__<purpose>` task name, never the generic default. Common Skills own their stage routes. The main agent retains architecture, safety-sensitive operations, coordination, integration, and final acceptance. Follow `~/.codex/docs/workflows/harness-engineering.md` for the seven-field dispatch and acceptance contract, the 8-thread pool, queueing, exclusions, leaf behavior, and main-agent review.
-For a clear single-target read-only task, use a prerequisite-only phase for required Skill loading, risk classification, and contract drafting; then the next domain action is `spawn_agent`. The Worker owns primary evidence, while the main agent reviews and synthesizes without first inspecting the target or discovering domain tools.
-Worker write paths stay exclusive until explicit release; use the detailed workflow for one same-Worker correction and interruption reasons.
-Cross-provider spawns must use `fork_turns = "1"` and carry the complete seven-field task in the parent context immediately before the `spawn_agent` call; `fork_turns = "none"` does not deliver the task to a Flash worker reliably.
+子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成工作，不再要求：强制 spawn、七字段合同、`route__...` 任务名前缀、协议标记（`Worker 协议`/`Flash 验收` 等）或 wait 纪律。
+
+仍可（而非必须）使用子代理的唯一情况：
+- 用户明确要求使用子代理；
+- 主 agent 判断并行派发能实质缩短等待，且任务边界清晰、可独立验证。
+
+恢复方法：本仓库 git 历史保留原规则。用 `git log -p -- .codex/AGENTS.md` 找回并还原，同时恢复 SKILL.md、`docs/workflows/harness-engineering.md`、`harness_doctor.py` 会话审计与 `.codex/agents/` Worker 配置，再删除本「已暂停」标记。
 
 ## Harness Engineering
 

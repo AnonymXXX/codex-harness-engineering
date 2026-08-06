@@ -46,7 +46,7 @@ Codex should compare at least these areas:
 | Skill routing | Choose focused workflows for code design, diagnosis, domain modeling, TDD, and related work. |
 | Validation | Run the smallest credible test, lint, build, or Doctor checks for the affected surface. |
 | Git and platform operations | Use reusable workflows for commits, GitHub operations, and releases with explicit stop conditions. |
-| Parallel execution | Delegate bounded, independently verifiable work to `deepseek_v4_flash_worker`, with the main agent reviewing and integrating it. |
+| Parallel execution | Subagent delegation is paused (2026-08-06); the main agent completes work directly, and the previous Worker protocol remains recoverable from Git history. |
 | Knowledge capture | Add only long-lived rules and decisions that pass the Capture Gate, reducing documentation noise. |
 | Recovery and upgrades | Restore the workflow on a new machine through versioned configuration, an installer, backups, and health checks. |
 
@@ -78,7 +78,7 @@ other devices; Codex should not infer conclusions from missing information.
 
 ## Profiles
 
-- `core`: global Harness rules, workflows, `deepseek_v4_flash_worker`, and five core skills for Harness
+- `core`: global Harness rules, workflows, and five core skills for Harness
   Engineering, code design, diagnosis, domain modeling, and TDD.
 - `daily`: includes `core` and adds frequently used skills for Git, GitHub, releases, web access,
   frontend work, and WeChat Mini Programs.

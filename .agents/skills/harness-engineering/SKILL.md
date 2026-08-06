@@ -30,30 +30,21 @@ For Fast Lane work:
 
 Use the Standard Lane for cohesive local features and fixes that exceed the Fast Lane but do not touch high-risk surfaces. Use the Heavy Lane for medium or large changes, shared behavior, configuration, generated artifacts, releases, production operations, data, security, permissions, or unclear blast radius. File count is only a signal; risk and coupling decide the lane.
 
-## Worker-first Coverage Gate
+## Worker-first Coverage Gate (PAUSED)
 
-- After request and risk classification, route every safely delegable, bounded execution or evidence-gathering unit through an independent Worker, regardless of size, duration, or target count. Single-repository, single-page, single-source, and single-question inspection are included even when no files are modified.
-- For a clear single-target read-only task, keep the main agent in a prerequisite-only phase limited to required Skill loading, risk classification, and the dispatch contract. The Worker is the primary evidence owner; after prerequisites, the next domain action is `spawn_agent`, not main-agent target inspection or tool discovery.
-- When the triggered domain Skill supplies a complete Fast Lane dispatch contract, use that local contract and do not load the full Harness workflow before spawning. Load the detailed workflow later only if review, correction, or escalation requires it.
-- Route bounded, independently verifiable execution to `deepseek_v4_flash_worker`. Common domain Skills own their stage-specific routes.
-- Every routed `spawn_agent` call must set `agent_type` explicitly to `deepseek_v4_flash_worker` and use the workflow's auditable `route__<skill>__<phase>__<purpose>` task name; never use the generic default and label it afterward.
-- Cross-provider dispatch to `deepseek_v4_flash_worker` uses `fork_turns = "1"` and writes the complete seven-field task into the parent context immediately before the `spawn_agent` call; `fork_turns = "none"` does not deliver the task reliably across providers.
-- Put an itemized required-evidence checklist in `Verification`: name exactly what the Worker must inspect, the acceptable source or output for each item, and what counts as complete. Require `Verified` and `Gaps` to map back to that checklist.
-- Keep each Worker write path exclusively owned until explicit release; use one same-Worker correction marked `Correction: 1/1`, and start unrelated work with a new spawn. The detailed lifecycle and interruption protocol lives in the linked workflow.
-- When review finds missing required evidence, send only those gaps back to the same Worker before doing overlapping work in the main agent. After `followup_task`, snapshot status before waiting; never repeat `wait_agent` after a timeout without another status snapshot.
-- If `list_agents` reports the Worker as terminal or `completed`, do not call `wait_agent`; begin acceptance from the available response.
-- For single-target read-only work and its correction, cap each `wait_agent.timeout_ms` at `10000` and cumulative waiting without useful progress at 30 seconds. Every newly spawned follow-on unit has its own one-correction budget.
-- Use at most 8 direct Worker threads per root session. Workers are leaves and must not spawn, delegate, coordinate, or nest subagents.
-- Every completed root turn that used a named Worker ends with `Worker 协议：version=10`; a same-Worker correction or invalid reuse also ends with `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`. Followup messages may be encrypted, so Doctor reconciles the unencrypted final marker; roots without v10 remain historical/informational.
-- Preserve the existing conditional reports: a direct Worker interruption emits the exact `Worker 中断：...` line once; a root using `deepseek_v4_flash_worker` emits exactly one `Flash 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>` line.
-- When practical, split units expected beyond 30 minutes before dispatch; this is advisory, not a timeout or ordinary interruption reason.
-- Structured dispatch, response and acceptance reporting, routing precedence, thresholds, eligible unit types, queueing, fork bounds, exclusions, parallel disjointness, and main-agent review/failure handling are defined in the [Harness workflow](../../../.codex/docs/workflows/harness-engineering.md).
+子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成工作，不再要求强制 spawn、七字段合同、协议标记或 wait 纪律。
+
+仍可（而非必须）使用子代理的唯一情况：
+- 用户明确要求使用子代理；
+- 主 agent 判断并行派发能实质缩短等待，且任务边界清晰、可独立验证。
+
+恢复方法：从本仓库 git 历史恢复本段、`~/.codex/docs/workflows/harness-engineering.md` 的 Worker-first Delegation 章节，以及已移除的 `harness_doctor.py` 会话审计与 `.codex/agents/` Worker 配置。
 
 ## Natural Mode
 
 - Do not ask the user to invoke `$harness-engineering` or another workflow skill for an ordinary request.
 - For Fast Lane tasks, proceed directly in the current worktree and do not add ceremony beyond the narrow validation described above.
-- Apply the Worker-first Coverage Gate and its detailed rules in `~/.codex/docs/workflows/harness-engineering.md`; keep risk classification, coordination, integration, review, and final reporting with the main agent.
+- 子代理委派已暂停；主 agent 负责风险分级、协调、集成、审查与最终报告。
 - For clear medium-risk tasks, autonomously create a task worktree when the repo state and integration branch are safe and unambiguous, then run the worktree bootstrap from `~/.codex/docs/workflows/git-worktree.md` before editing.
 - Treat validated commits, eligible merges, and cleanup of fully merged task worktrees and local task branches as normal autonomous completion steps. Do not wait merely because the user did not mention Git; stop only when the documented safety conditions require it.
 - Record the target branch commit before creating a task worktree. Before remote integration, run the documented `integration_preflight.py` check with that task base against the latest remote target. Complete an authorized direct fast-forward autonomously; pause on `MR_REQUIRED` unless the user separately authorized the MR flow.
@@ -72,14 +63,13 @@ Use the Standard Lane for cohesive local features and fixes that exceed the Fast
 4. When the task reveals a confirmed durable decision, project invariant, or evidenced repeat failure, apply the workflow's Capture Gate before writing documentation.
 5. For larger or interruptible work, create or update an execution plan only when it will materially improve resumption.
 6. Keep `AGENTS.md` short and link to detailed workflow docs instead of expanding it.
-
 The capture criteria, document locations, conflict handling, and gardening policy live only in `~/.codex/docs/workflows/harness-engineering.md`. Ordinary tasks do not run a documentation audit or read Codex memory.
 
 ## Doctor And Templates
 
 - Run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor` after changing Harness skills, workflows, templates, or worktree policy. This is the fast core check.
-- Run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full` for periodic maintenance or when global skill metadata, runtime visibility, worktree debt, or session capture markers need inspection.
-- Add repeatable `--section skills`, `--section worktrees`, or `--section sessions` to a full Doctor run when only selected groups are needed.
+- Run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full` for periodic maintenance or when global skill metadata, runtime visibility, or worktree debt need inspection.
+- Add repeatable `--section skills` or `--section worktrees` to a full Doctor run when only selected groups are needed.
 - Run the optional docs audit with `doctor --full --section docs --repo-root <repo>` only for document gardening; `docs` is not part of the default full scan.
 - Run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write` after adding, removing, renaming, installing, or migrating user-managed skills, then run `index --check`.
 - Treat `doctor` and `index --check` as read-only. Only `index --write` may update `~/.agents/skills-index.md`.

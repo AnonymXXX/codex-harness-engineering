@@ -2,57 +2,22 @@
 
 ## Purpose
 
-Restore global Codex rules, custom agents, Harness workflows, and selected user-managed skills on
-a new macOS machine without copying credentials, sessions, memory, caches, or machine-specific
-Codex configuration into Git.
+Restore global Codex rules, Harness workflows, and selected user-managed skills on a new macOS
+machine without copying credentials, sessions, memory, caches, or machine-specific Codex
+configuration into Git.
 
 ## Distribution Model
 
-- `core` installs global Harness rules, the `deepseek_v4_flash_worker` custom agent, and five core
-  engineering skills.
+- `core` installs global Harness rules, workflows, and five core engineering skills.
 - `daily` extends `core` with frequently used portable skills.
 - A private overlay can be loaded from a separately cloned local repository by explicitly supplying
   its source path and profile. The public distribution does not discover, catalog, or clone overlays.
 - Managed files are symlinked into `~/.codex` and `~/.agents/skills` so Git remains the versioned
   source of truth.
 - Codex-managed system skills remain owned by Codex and are not copied into this repository.
-- Flash dispatches use the tracked route marker, seven-field task contract, and structured response contract.
-  The seven fields are `Objective`, `Ownership`, `Starting State`, `Interfaces`, `Constraints`, `Git Boundary`,
-  and `Verification`; the detailed lifecycle remains in the Harness workflow. Cross-provider spawns use
-  `fork_turns = "1"` and carry the complete seven-field task in the parent context immediately before the call.
-- Worker coverage includes every bounded, independently verifiable execution or evidence-gathering unit,
-  including single-target repository, page, source, or question inspection even when no files are modified.
-- Every dispatch puts an itemized required-evidence checklist in `Verification`, and the Worker maps
-  `Verified` and `Gaps` back to it. Missing required items use one gap-only same-Worker `followup_task`
-  marked `Correction: 1/1`; the main agent does not duplicate that work while correction is active.
-- After `followup_task`, the main agent snapshots Worker status before waiting and never repeats
-  `wait_agent` after a timeout without another status snapshot. Worker write paths stay exclusively owned
-  until release; unrelated work gets a new spawn.
-- For single-target read-only work, the main agent completes only the prerequisite phase and then dispatches
-  the Worker as primary evidence owner. A domain Skill's complete Fast Lane contract is sufficient for
-  dispatch, so the main agent does not load the full Harness workflow first. The opening update states that
-  the Worker collects primary evidence while the main agent only reviews and synthesizes. Each wait is capped
-  at 10 seconds with a cumulative wait budget of 30 seconds without useful progress; a terminal or completed
-  `list_agents` state skips `wait_agent` entirely. Every newly spawned follow-on unit receives its own correction budget.
-  A root task reports adopted, partially adopted, rejected, and failed Flash work-unit counts so Harness
-  Doctor can audit actual result use and route compliance.
-- The tracked Flash agent sets `[agents] enabled = false` so Workers are mechanically unable to spawn
-  nested agents; the main-agent routing obligation does not apply recursively to a Worker.
-  Its developer instructions also ignore inherited parent-only coordination and execute the latest
-  `Route:` plus seven-field Worker contract directly.
-- Every completed root turn that used a named Worker appends the exact final marker `Worker 协议：version=10`.
-  A same-Worker correction or invalid reuse also appends `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`;
-  `started + violations` counts associated followup turns and `completed + failed = started`. A runtime-completed
-  correction increments `completed` even when later partially accepted or rejected; acceptance quality stays
-  in `Flash 验收`. Followup messages may be encrypted,
-  so Doctor reconciles the unencrypted final marker. Roots without v10 remain
-  historical/informational.
-- A root using `deepseek_v4_flash_worker` emits exactly one `Flash 验收：adopted=<n> partial=<n> rejected=<n> failed=<n>`
-  line after review. Worker caps are enforced per root session (8 total); aggregate/global peaks are informational.
-  When practical, split units expected beyond 30 minutes; this is advisory, not a timeout or ordinary
-  interruption reason.
-- Harness Doctor continues to parse the old v9 Luna/Terra protocol as historical compatibility data, but
-  new dispatches use only `deepseek_v4_flash_worker`.
+- Subagent delegation is paused (user decision, 2026-08-06); the main agent completes work directly.
+  The prior Worker protocol, session audit, and agent configuration remain recoverable from this
+  repository's Git history if delegation is restored later.
 
 ## Recovery Contract
 
@@ -105,19 +70,9 @@ python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py check 
 For an optional private overlay, clone it separately and rerun `install` and `check` with its
 absolute `--overlay-source` path and `--overlay-profile` name.
 
-The official `[agents].max_concurrent_threads_per_session` setting is the maximum number of
-concurrent agent threads outside the main Codex thread. The total spawned-thread limit is `8` for this
-setup. On a new machine, merge the following section into the machine-specific `~/.codex/config.toml`
-while preserving unrelated settings:
-
-```toml
-[agents]
-enabled = true
-max_concurrent_threads_per_session = 8
-```
-
-The installer must not create, copy, link, or automatically overwrite this file. Codex reads the
-setting only when a new task starts. Start a new Codex task after installation.
+The installer must not create, copy, link, or automatically overwrite the machine-specific
+`~/.codex/config.toml`. Codex reads that file only when a new task starts. Start a new Codex task
+after installation.
 
 ## Update And Rollback
 
@@ -133,18 +88,7 @@ path. Permanent deletion is not part of recovery or rollback.
 - `core` and `daily` resolve deterministically from the public `profiles.json`.
 - An explicit external overlay resolves only from its own Manifest and selected Profile.
 - A temporary empty HOME can install and check profiles twice without drift.
-- The installed `deepseek_v4_flash_worker` matches its tracked TOML file and is available to fresh Codex tasks.
-- A fresh task can dispatch Flash with the seven-field structured contract and emits the exact
-  `Worker 协议：version=10` marker for every completed root turn that used a named Worker. When correction
-  or invalid reuse occurs, it also emits the exact `Worker 纠错：started=<n> completed=<n> failed=<n> violations=<n>`
-  marker. Conditional reports remain required: a direct Worker interruption emits the exact interruption
-  line below once, and a completed root turn using Flash emits exactly one machine-readable acceptance line
-  after review.
-- When a direct Worker turn is interrupted, the root task emits this exact line with only the five approved reasons:
-
-  ```text
-  Worker 中断：overlap=<n> unsafe=<n> scope_violation=<n> user_redirect=<n> unresponsive=<n>
-  ```
+- No custom Codex agent configs are installed; delegation remains paused until restored from Git history.
 - The tracked public Skill inventory matches the Manifest and actual directories.
 - Security checks reject real environment files, Codex config, private keys, nested Git metadata,
   generated caches, known credential formats, and hardcoded database passwords.

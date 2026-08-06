@@ -42,7 +42,7 @@ Codex 应重点比较以下方面：
 | Skill 路由 | 根据代码设计、故障诊断、领域建模、TDD 等任务自动选择专业工作流。 |
 | 验证 | 根据修改范围运行最小但可信的测试、lint、构建或 Doctor 检查。 |
 | Git 与平台操作 | 使用可复用流程处理提交、GitHub 操作和发布任务，并保留明确的停止条件。 |
-| 并行执行 | 将边界清晰且可独立验证的工作交给 `deepseek_v4_flash_worker`，主 Agent 负责复核和集成。 |
+| 并行执行 | 子代理派发当前暂停（2026-08-06），主 Agent 直接完成工作；原 Worker 协议可从 Git 历史恢复。 |
 | 知识沉淀 | 只有满足 Capture Gate 的长期规则和决策才进入项目文档，减少文档噪声。 |
 | 恢复与升级 | 通过版本化配置、安装器、备份和健康检查在新机器上恢复工作流。 |
 
@@ -70,8 +70,8 @@ Codex 只能分析当前任务中你明确授权且本机可访问的内容。�
 
 ## 可选方案
 
-- `core`：全局 Harness 规则、工作流、`deepseek_v4_flash_worker`，以及 Harness Engineering、代码设计、
-  故障诊断、领域建模和 TDD 五个核心 Skill。
+- `core`：全局 Harness 规则、工作流，以及 Harness Engineering、代码设计、故障诊断、领域建模和 TDD
+  五个核心 Skill。
 - `daily`：包含 `core`，并增加 Git、GitHub、发布、Web、前端和微信小程序等常用 Skill。
 - 私有 Overlay：可选的外部 Skill 仓库，由用户自行克隆并显式提供本地路径和 Profile。
   本仓库不会记录其地址、Skill 清单或凭据元数据。

@@ -5,10 +5,18 @@
     "repository": "AnonymXXX/codex-harness-engineering"
   },
   "global_links": [
-    {"source": ".codex/AGENTS.md", "destination": ".codex/AGENTS.md"},
-    {"source": ".codex/agents/deepseek-v4-flash-worker.toml", "destination": ".codex/agents/deepseek-v4-flash-worker.toml"},
-    {"source": ".codex/RTK.md", "destination": ".codex/RTK.md"},
-    {"source": ".codex/docs/workflows", "destination": ".codex/docs/workflows"}
+    {
+      "source": ".codex/AGENTS.md",
+      "destination": ".codex/AGENTS.md"
+    },
+    {
+      "source": ".codex/RTK.md",
+      "destination": ".codex/RTK.md"
+    },
+    {
+      "source": ".codex/docs/workflows",
+      "destination": ".codex/docs/workflows"
+    }
   ],
   "profiles": {
     "core": {
@@ -17,7 +25,9 @@
     },
     "daily": {
       "description": "Core Harness plus frequently used portable engineering skills.",
-      "includes": ["core"]
+      "includes": [
+        "core"
+      ]
     }
   },
   "dependency_checks": [
@@ -70,7 +80,9 @@
       "id": "wechat-devtools",
       "profile": "daily",
       "kind": "path-any",
-      "values": ["/Applications/wechatwebdevtools.app"],
+      "values": [
+        "/Applications/wechatwebdevtools.app"
+      ],
       "missing": "optional"
     }
   ],
@@ -99,7 +111,10 @@
     "harness-engineering": {
       "profile": "core",
       "description": "Apply the global risk, worktree, documentation, and validation workflow.",
-      "dependencies": ["git", "python3"],
+      "dependencies": [
+        "git",
+        "python3"
+      ],
       "credentials": "none",
       "validation": "python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor"
     },
@@ -113,28 +128,40 @@
     "web-access": {
       "profile": "daily",
       "description": "Perform network research and browser/CDP workflows.",
-      "dependencies": ["node", "curl", "Chrome or Edge"],
+      "dependencies": [
+        "node",
+        "curl",
+        "Chrome or Edge"
+      ],
       "credentials": "Local browser session and ignored config.env preference",
       "validation": "node ~/.agents/skills/web-access/scripts/check-deps.mjs"
     },
     "git-auto-commit": {
       "profile": "daily",
       "description": "Group and commit local Git changes conservatively.",
-      "dependencies": ["git"],
+      "dependencies": [
+        "git"
+      ],
       "credentials": "none",
       "validation": "SKILL.md metadata validation"
     },
     "github-cli-ops": {
       "profile": "daily",
       "description": "Operate GitHub platform workflows through gh and Git.",
-      "dependencies": ["git", "gh"],
+      "dependencies": [
+        "git",
+        "gh"
+      ],
       "credentials": "gh auth login",
       "validation": "gh auth status"
     },
     "release-ops": {
       "profile": "daily",
       "description": "Inspect and promote release commits, tags, and branches.",
-      "dependencies": ["git", "python3"],
+      "dependencies": [
+        "git",
+        "python3"
+      ],
       "credentials": "Repository remote authentication",
       "validation": "python3 syntax and unit validation"
     },
@@ -148,14 +175,19 @@
     "develop-uniapp-miniapp": {
       "profile": "daily",
       "description": "Build and extend uni-app WeChat mini-program projects.",
-      "dependencies": ["Project-selected Node.js package manager"],
+      "dependencies": [
+        "Project-selected Node.js package manager"
+      ],
       "credentials": "Project-specific only",
       "validation": "SKILL.md metadata validation"
     },
     "wechat-miniprogram-ci-upload": {
       "profile": "daily",
       "description": "Upload WeChat Mini Program builds through DevTools CLI or miniprogram-ci.",
-      "dependencies": ["node", "WeChat DevTools"],
+      "dependencies": [
+        "node",
+        "WeChat DevTools"
+      ],
       "credentials": "DevTools login or project-local ignored upload key",
       "validation": "Dependency and target-project preflight"
     }
