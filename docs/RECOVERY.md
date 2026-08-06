@@ -29,8 +29,11 @@ Codex configuration into Git.
   `wait_agent` after a timeout without another status snapshot. Worker write paths stay exclusively owned
   until release; unrelated work gets a new spawn.
 - For single-target read-only work, the main agent completes only the prerequisite phase and then dispatches
-  the Worker as primary evidence owner. Each wait is capped at 10 seconds with a cumulative wait budget of
-  30 seconds without useful progress. Every newly spawned follow-on unit receives its own correction budget.
+  the Worker as primary evidence owner. A domain Skill's complete Fast Lane contract is sufficient for
+  dispatch, so the main agent does not load the full Harness workflow first. The opening update states that
+  the Worker collects primary evidence while the main agent only reviews and synthesizes. Each wait is capped
+  at 10 seconds with a cumulative wait budget of 30 seconds without useful progress; a terminal or completed
+  `list_agents` state skips `wait_agent` entirely. Every newly spawned follow-on unit receives its own correction budget.
   A root task reports adopted, partially adopted, rejected, and failed Flash work-unit counts so Harness
   Doctor can audit actual result use and route compliance.
 - The tracked Flash agent sets `[agents] enabled = false` so Workers are mechanically unable to spawn

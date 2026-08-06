@@ -17,11 +17,14 @@ metadata:
 
 ## Worker Routing
 
-Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's access phases.
+This section is the complete Fast Lane dispatch contract for a clear single-target read-only Web task. Do not read the full Harness workflow before dispatch; consult it only after dispatch if review, correction, or escalation needs details not stated here.
 
 - Use `deepseek_v4_flash_worker` with `Route: web-access/research` for every bounded, independently verifiable, read-only evidence-gathering unit. This includes a single repository, page, source, or question; use one Worker for a small single target rather than skipping delegation. Workers return source evidence and do not perform mutations.
-- 对清晰的单目标只读查询，Worker 是主要证据负责人，不是主代理调研后的交叉验证者。主代理在加载本 Skill、完成风险分类和证据清单后立即派发；在 Worker 返回缺口前，不运行 `check-deps.mjs`、不发现联网工具、也不访问目标页面。
+- 对清晰的单目标只读查询，主代理只加载本 Skill、分类风险并起草合同；下一个领域动作必须是 `spawn_agent`。调用时设置 `agent_type = deepseek_v4_flash_worker`、`fork_turns = "1"`，并使用 `route__web_access__research__<purpose>` 任务名。跨模型时，先在父上下文完整写出同一份合同，再立即派发。
+- The seven-field contract contains `Objective`, `Ownership`, `Starting State`, `Interfaces`, `Constraints`, `Git Boundary`, and an itemized `Verification` evidence checklist. Worker responses map every checklist item to `Verified` or `Gaps`.
+- 对外开场必须明确职责，不得说成主代理将自行查看目标。使用与用户语言一致的等价表述："Worker will collect the primary evidence; the main agent will only review and synthesize." Worker 是主要证据负责人，不是主代理调研后的交叉验证者。在 Worker 返回缺口前，主代理不运行 `check-deps.mjs`、不发现联网工具、也不访问目标页面。
 - 这类快速查询及其纠正每次 `wait_agent` 最长 10 秒；每次超时后先检查状态，无有效进展时累计等待最多 30 秒，禁止 120 秒等待。
+- Before any wait, inspect the current Worker state. If `list_agents` reports the Worker as terminal or `completed`, do not call `wait_agent`; review the available result immediately.
 - Keep synthesis, source reconciliation, login/session actions, browser interactions that mutate state, and external writes with the main agent.
 
 ## 前置检查

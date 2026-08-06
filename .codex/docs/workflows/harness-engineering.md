@@ -37,7 +37,9 @@ dispatch: read explicitly triggered Skills, classify risk, and write the seven-f
 required-evidence checklist. During that phase it must not inspect the target, discover domain tools, call
 the network, or announce that it will perform the primary research itself. The Worker is the primary
 evidence owner; the main agent owns acceptance and synthesis and must not describe it as cross-validation.
-Once those prerequisites are complete, the next domain action is `spawn_agent`.
+Once those prerequisites are complete, the next domain action is `spawn_agent`. When the triggered domain
+Skill contains a complete Fast Lane dispatch contract, do not reread this full workflow before spawning;
+return here only when later review, correction, or escalation needs the detailed lifecycle.
 
 Use `deepseek_v4_flash_worker` for clear, bounded, independently verifiable units such as inventory,
 contract tracing, test authoring or execution, read-only research, focused validation, isolated local
@@ -153,8 +155,9 @@ calls without an intervening status snapshot.
 For a clear single-target read-only unit or its correction, each `wait_agent` uses `timeout_ms` no greater
 than `10000`, with a cumulative wait budget of 30 seconds between useful progress or evidence updates.
 After every timeout, take another `list_agents` snapshot and stop waiting as soon as the Worker is terminal.
-A fast research unit must not use a 120-second wait. Longer units may use a larger task-specific timeout
-only when their expected duration was established before dispatch.
+If `list_agents` reports the Worker as terminal or `completed`, do not call `wait_agent`; review the
+available response immediately. A fast research unit must not use a 120-second wait. Longer units may use
+a larger task-specific timeout only when their expected duration was established before dispatch.
 
 Each work unit gets at most one same-Worker correction. If the correction still fails, classify and release
 that unit. When the remaining evidence is still required and safely delegable, define the unresolved items

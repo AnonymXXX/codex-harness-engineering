@@ -337,6 +337,46 @@ class HarnessSetupCliTests(unittest.TestCase):
         self.assertIn("newly spawned follow-on unit", normalized_recovery)
         self.assertIn("cumulative wait budget", normalized_recovery)
 
+    def test_web_access_fast_dispatch_is_self_contained_and_terminal_aware(self) -> None:
+        workflow = (
+            ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
+        ).read_text(encoding="utf-8")
+        web_access = (
+            ROOT / ".agents" / "skills" / "web-access" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        routing = web_access.split("## Worker Routing", 1)[1].split("## 前置检查", 1)[0]
+        normalized_routing = " ".join(routing.split())
+        normalized_workflow = " ".join(workflow.split())
+
+        self.assertIn("Do not read the full Harness workflow before dispatch", normalized_routing)
+        self.assertIn("`spawn_agent`", normalized_routing)
+        self.assertIn("`agent_type = deepseek_v4_flash_worker`", normalized_routing)
+        self.assertIn('`fork_turns = "1"`', normalized_routing)
+        self.assertIn("seven-field contract", normalized_routing)
+        for field in (
+            "Objective",
+            "Ownership",
+            "Starting State",
+            "Interfaces",
+            "Constraints",
+            "Git Boundary",
+            "Verification",
+        ):
+            self.assertIn(f"`{field}`", normalized_routing)
+
+        self.assertIn(
+            "Worker will collect the primary evidence; the main agent will only review and synthesize",
+            normalized_routing,
+        )
+        self.assertIn(
+            "If `list_agents` reports the Worker as terminal or `completed`, do not call `wait_agent`",
+            normalized_routing,
+        )
+        self.assertIn(
+            "If `list_agents` reports the Worker as terminal or `completed`, do not call `wait_agent`",
+            normalized_workflow,
+        )
+
     def test_worker_cross_provider_fork_context_contract(self) -> None:
         workflow = (
             ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
