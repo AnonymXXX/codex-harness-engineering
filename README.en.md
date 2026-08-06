@@ -48,78 +48,65 @@ Codex should compare at least these areas:
 | Git and platform operations | Use reusable workflows for commits, GitHub operations, and releases with explicit stop conditions. |
 | Parallel execution | Subagent delegation is paused (2026-08-06); the main agent completes work directly, and the previous Worker protocol remains recoverable from Git history. |
 | Knowledge capture | Add only long-lived rules and decisions that pass the Capture Gate, reducing documentation noise. |
-| Recovery and upgrades | Restore the workflow on a new machine through versioned configuration, an installer, backups, and health checks. |
+| Recovery and upgrades | Keep a single source of truth through versioned configuration and symlinks; the historical one-command installer remains recoverable from Git history. |
 
 These are workflow capabilities, not mechanisms that every task must use. Simple tasks should remain lightweight.
 
 ### 3. Ask Codex to adopt it safely
 
-After deciding that it fits, Codex can perform the inspection, installation, and validation:
+After deciding that it fits, Codex can perform the inspection, linking, and validation:
 
 ```text
 Help me adopt AnonymXXX/codex-harness-engineering.
 
 First, inspect ~/.codex, ~/.agents/skills, the current Git state, and potential conflicts without
-making changes. Compare core and daily, and recommend a profile. If I separately provide a private
-overlay path and profile, inspect only that local source; do not attempt to discover or clone other
-private repositories. Do not read, copy, or output credentials, sessions, memory, caches, or other
+making changes. Do not read, copy, or output credentials, sessions, memory, caches, or other
 sensitive runtime data.
 
 Before changing anything, list the affected files, backup strategy, dependencies, and risks. Do not
-install or rewrite files until I confirm. After confirmation, run harness_setup.py install, followed
-by the matching check, Skill index checks, and Harness Doctor. Finally, summarize the actual changes,
-backup locations, validation results, and whether I need to start a new Codex task to load the rules
-and skills.
+create symlinks or rewrite files until I confirm. After confirmation, create the documented symlinks,
+then run the Skill index checks and Harness Doctor. Finally, summarize the actual changes, validation
+results, and whether I need to start a new Codex task to load the rules and skills.
 ```
 
 Codex can analyze only content you explicitly authorize in the current task and that the local
 environment can access. You must supply inaccessible history, remote data, or configuration from
 other devices; Codex should not infer conclusions from missing information.
 
-## Profiles
+## Skill Set
 
-- `core`: global Harness rules, workflows, and five core skills for Harness
-  Engineering, code design, diagnosis, domain modeling, and TDD.
-- `daily`: includes `core` and adds frequently used skills for Git, GitHub, releases, web access,
-  frontend work, and WeChat Mini Programs.
-- Private overlay: an optional external skill repository that the user clones and identifies with
-  an explicit local path and profile. This repository stores none of its addresses, skill catalog,
-  or credential metadata.
+- Core workflow: `harness-engineering`, plus the four core engineering skills
+  `codebase-design`, `diagnosing-bugs`, `domain-modeling`, and `tdd`.
+- Frequently used domain skills: `git-auto-commit`, `github-cli-ops`, `release-ops`, `web-access`,
+  `frontend-design`, `develop-uniapp-miniapp`, and `wechat-miniprogram-ci-upload`.
 
-See [docs/SKILLS.md](docs/SKILLS.md) for the complete public skill inventory.
+## Installation
 
-## Manual Installation
-
-To install without asking Codex to operate it, first install Codex CLI, Git, Python 3, and GitHub CLI
-on macOS, then run:
+If this machine is already installed, use it directly. To set up a new machine, first install Codex
+CLI, Git, Python 3, and GitHub CLI on macOS, then create the symlinks manually:
 
 ```bash
 gh repo clone AnonymXXX/codex-harness-engineering ~/.local/share/codex-harness-engineering
-python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py install --profile core
-python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py check --profile core
+ln -s ~/.local/share/codex-harness-engineering/.codex/AGENTS.md ~/.codex/AGENTS.md
+ln -s ~/.local/share/codex-harness-engineering/.codex/RTK.md ~/.codex/RTK.md
+ln -s ~/.local/share/codex-harness-engineering/.codex/docs ~/.codex/docs
+for skill in ~/.local/share/codex-harness-engineering/.agents/skills/*; do
+  ln -s "$skill" ~/.agents/skills/
+done
+python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write
 ```
 
-Replace `core` with `daily` to install the daily extensions. If you have already cloned a private
-overlay, pass its local path and profile explicitly:
+If a link target already exists, back it up with `/usr/bin/trash` before linking. The installer does
+not copy or overwrite the machine-specific `~/.codex/config.toml`, credentials, sessions, memory, or
+caches. After installation, start a new Codex task to load the global rules and skills.
 
-```bash
-python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py install --profile daily --overlay-source /absolute/path/to/private-overlay --overlay-profile private
-python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py check --profile daily --overlay-source /absolute/path/to/private-overlay --overlay-profile private
-```
-
-The installer backs up conflicting targets, but it does not copy or overwrite the machine-specific
-`~/.codex/config.toml`, credentials, sessions, memory, or caches. After installation, start a new
-Codex task to load the global rules, custom agents, and skills.
-
-See [docs/RECOVERY.md](docs/RECOVERY.md) for prerequisites, profile selection, updates, rollback,
-and credential handling.
+Historical releases provide the one-command installer `scripts/harness_setup.py` and `profiles.json`.
+To automate installation, restore those two files from Git history and follow the README of that era.
 
 ## Layout
 
-- `.codex/`: global agent rules, custom agents, and Harness workflow documents.
+- `.codex/`: global agent rules and Harness workflow documents.
 - `.agents/skills/`: the Harness skill family and its executable checks.
-- `scripts/harness_setup.py`: installation, checks, documentation generation, and local credential setup.
-- `profiles.json`: the executable manifest for `core` and `daily`.
 
 The repository mirrors paths relative to the user's home directory. Runtime state, sessions,
 memories, credentials, caches, and unrelated skills are intentionally excluded.

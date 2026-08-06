@@ -44,71 +44,62 @@ Codex 应重点比较以下方面：
 | Git 与平台操作 | 使用可复用流程处理提交、GitHub 操作和发布任务，并保留明确的停止条件。 |
 | 并行执行 | 子代理派发当前暂停（2026-08-06），主 Agent 直接完成工作；原 Worker 协议可从 Git 历史恢复。 |
 | 知识沉淀 | 只有满足 Capture Gate 的长期规则和决策才进入项目文档，减少文档噪声。 |
-| 恢复与升级 | 通过版本化配置、安装器、备份和健康检查在新机器上恢复工作流。 |
+| 恢复与升级 | 通过版本化配置和符号链接保持单一事实源；历史一键安装器可从 Git 历史找回。 |
 
 这些是工作流提供的能力，不代表每个任务都会使用全部机制。简单任务仍应保持轻量。
 
 ### 3. 让 Codex 安全接入
 
-确认适合后，可以让 Codex 完成检查、安装和验证：
+确认适合后，可以让 Codex 完成检查、链接和验证：
 
 ```text
 请帮我接入 AnonymXXX/codex-harness-engineering。
 
-先只读检查 ~/.codex、~/.agents/skills、当前 Git 状态和可能冲突，比较 core 与 daily，
-并说明你推荐的 profile。如果我另外提供了私有 Overlay 路径和 Profile，只检查该本地来源，
-不要尝试发现或克隆其他私有仓库。不要读取、复制或输出凭据、sessions、memory、cache
-或其他敏感运行时数据。
+先只读检查 ~/.codex、~/.agents/skills、当前 Git 状态和可能冲突。不要读取、复制或输出凭据、
+sessions、memory、cache 或其他敏感运行时数据。
 
-修改前列出会影响的文件、备份策略、依赖和风险。在我确认前不要安装或改写文件。
-确认后运行 harness_setup.py install，随后运行对应的 check、Skill index 检查和 Harness Doctor。
-最后总结实际变更、备份位置、验证结果，以及是否需要新建 Codex 任务来加载规则和 Skills。
+修改前列出会影响的文件、备份策略、依赖和风险。在我确认前不要创建符号链接或改写文件。
+确认后按 README 的安装说明创建符号链接，随后运行 Skill index 检查和 Harness Doctor。
+最后总结实际变更、验证结果，以及是否需要新建 Codex 任务来加载规则和 Skills。
 ```
 
 Codex 只能分析当前任务中你明确授权且本机可访问的内容。它无法访问的历史记录、远程数据或
 其他设备配置，必须由你补充；不要根据不完整信息推断结论。
 
-## 可选方案
+## 技能组成
 
-- `core`：全局 Harness 规则、工作流，以及 Harness Engineering、代码设计、故障诊断、领域建模和 TDD
-  五个核心 Skill。
-- `daily`：包含 `core`，并增加 Git、GitHub、发布、Web、前端和微信小程序等常用 Skill。
-- 私有 Overlay：可选的外部 Skill 仓库，由用户自行克隆并显式提供本地路径和 Profile。
-  本仓库不会记录其地址、Skill 清单或凭据元数据。
+- 核心工作流：`harness-engineering`，以及 `codebase-design`、`diagnosing-bugs`、
+  `domain-modeling`、`tdd` 四个核心工程 Skill。
+- 常用领域 Skill：`git-auto-commit`、`github-cli-ops`、`release-ops`、`web-access`、
+  `frontend-design`、`develop-uniapp-miniapp`、`wechat-miniprogram-ci-upload`。
 
-完整公开 Skill 清单见 [docs/SKILLS.md](docs/SKILLS.md)。
+## 安装
 
-## 手动安装
-
-如果你希望不通过 Codex 操作，可在 macOS 上安装 Codex CLI、Git、Python 3 和 GitHub CLI，
-然后运行：
+本机已经安装时直接使用。换机或重装时，在 macOS 上安装 Codex CLI、Git、Python 3 和 GitHub CLI，
+然后手动创建符号链接：
 
 ```bash
 gh repo clone AnonymXXX/codex-harness-engineering ~/.local/share/codex-harness-engineering
-python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py install --profile core
-python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py check --profile core
+ln -s ~/.local/share/codex-harness-engineering/.codex/AGENTS.md ~/.codex/AGENTS.md
+ln -s ~/.local/share/codex-harness-engineering/.codex/RTK.md ~/.codex/RTK.md
+ln -s ~/.local/share/codex-harness-engineering/.codex/docs ~/.codex/docs
+for skill in ~/.local/share/codex-harness-engineering/.agents/skills/*; do
+  ln -s "$skill" ~/.agents/skills/
+done
+python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write
 ```
 
-将 `core` 替换为 `daily` 可安装日常扩展。已经自行克隆私有 Overlay 时，显式传入其路径和
-Profile：
+链接目标已存在时先用 `/usr/bin/trash` 备份再链接；安装器不会复制或覆盖机器相关的
+`~/.codex/config.toml`、凭据、sessions、memory 或 cache。安装完成后，新建一个 Codex 任务以加载
+全局规则和 Skills。
 
-```bash
-python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py install --profile daily --overlay-source /absolute/path/to/private-overlay --overlay-profile private
-python3 ~/.local/share/codex-harness-engineering/scripts/harness_setup.py check --profile daily --overlay-source /absolute/path/to/private-overlay --overlay-profile private
-```
-
-安装器会备份冲突目标，但不会复制或覆盖机器相关的 `~/.codex/config.toml`、凭据、sessions、
-memory 或 cache。安装完成后，新建一个 Codex 任务以加载全局规则、自定义 Agents 和 Skills。
-
-前置条件、配置选择、更新、回滚和凭据处理详见
-[docs/RECOVERY.md](docs/RECOVERY.md)。
+历史版本提供一键安装器 `scripts/harness_setup.py` 与 `profiles.json`；如需自动化安装，可从
+Git 历史恢复这两个文件后按当时的 README 使用。
 
 ## 目录结构
 
-- `.codex/`：全局 Agent 规则、自定义 Agent 与 Harness 工作流文档。
+- `.codex/`：全局 Agent 规则与 Harness 工作流文档。
 - `.agents/skills/`：Harness Skill 系列及其可执行检查。
-- `scripts/harness_setup.py`：安装、检查、文档生成和本机凭据引导入口。
-- `profiles.json`：`core` 和 `daily` 的可执行清单。
 
 本仓库按照相对于用户主目录的路径镜像文件。运行时状态、会话、记忆、凭据、缓存和无关 Skill
 均被有意排除。
