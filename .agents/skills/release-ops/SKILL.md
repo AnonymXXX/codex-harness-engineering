@@ -7,12 +7,9 @@ description: Handle release promotion requests that inspect commits on `uat`, fi
 
 Use this skill for git release promotion tasks that follow a repeatable backport workflow.
 
-## Worker Routing
+## Worker Routing (PAUSED)
 
-Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
-
-- Use `deepseek_v4_flash_worker` with `Route: release-ops/inspect` for inspect-only release evidence: branch/ref/tag inventory, patch-equivalent comparison, candidate commits, blockers, and tag suggestions; it must not execute mutations.
-- Keep execution, cherry-picks, tag creation, branch/tag pushes, conflict resolution, and final remote verification with the main agent.
+子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
 
 ## Defaults
 

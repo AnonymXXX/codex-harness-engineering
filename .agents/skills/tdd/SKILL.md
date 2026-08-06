@@ -7,12 +7,9 @@ description: Implement behavior test-first with a red-green feedback loop. Use w
 
 Use red -> green feedback to build one vertical behavior slice at a time.
 
-## Worker Routing
+## Worker Routing (PAUSED)
 
-Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
-
-- Use `deepseek_v4_flash_worker` with `Route: tdd/tests` for independent test inventory, focused test authoring, and test execution that returns red/green evidence.
-- Route only a bounded implementation loop to `deepseek_v4_flash_worker` with `Route: tdd/implementation` after the main agent fixes the public seam, behavior contract, and acceptance criteria; keep design, coordination, integration, and final validation with the main agent.
+子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
 
 ## Before Writing Tests
 

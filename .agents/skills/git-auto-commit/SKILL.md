@@ -7,12 +7,9 @@ description: Analyze git status and diffs, group related changes into safe commi
 
 Use `references/git-commit-command.md` as the source reference for the original `/commit` command behavior that this skill was derived from.
 
-## Worker Routing
+## Worker Routing (PAUSED)
 
-Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's local phases.
-
-- Use `deepseek_v4_flash_worker` with `Route: git-auto-commit/inspect` only for read-only repository inspection and diff grouping suggestions; it must not stage or mutate files.
-- Keep staging, commit-message decisions, commits, pushes, and cleanup with the main agent.
+子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
 
 ## Inspect Repository State
 

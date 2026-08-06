@@ -15,17 +15,9 @@ metadata:
 
 # web-access Skill
 
-## Worker Routing
+## Worker Routing (PAUSED)
 
-This section is the complete Fast Lane dispatch contract for a clear single-target read-only Web task. Do not read the full Harness workflow before dispatch; consult it only after dispatch if review, correction, or escalation needs details not stated here.
-
-- Use `deepseek_v4_flash_worker` with `Route: web-access/research` for every bounded, independently verifiable, read-only evidence-gathering unit. This includes a single repository, page, source, or question; use one Worker for a small single target rather than skipping delegation. Workers return source evidence and do not perform mutations.
-- 对清晰的单目标只读查询，主代理只加载本 Skill、分类风险并起草合同；下一个领域动作必须是 `spawn_agent`。调用时设置 `agent_type = deepseek_v4_flash_worker`、`fork_turns = "1"`，并使用 `route__web_access__research__<purpose>` 任务名。跨模型时，先在父上下文完整写出同一份合同，再立即派发。
-- The seven-field contract contains `Objective`, `Ownership`, `Starting State`, `Interfaces`, `Constraints`, `Git Boundary`, and an itemized `Verification` evidence checklist. Worker responses map every checklist item to `Verified` or `Gaps`.
-- 对外开场必须明确职责，不得说成主代理将自行查看目标。使用与用户语言一致的等价表述："Worker will collect the primary evidence; the main agent will only review and synthesize." Worker 是主要证据负责人，不是主代理调研后的交叉验证者。在 Worker 返回缺口前，主代理不运行 `check-deps.mjs`、不发现联网工具、也不访问目标页面。
-- 这类快速查询及其纠正每次 `wait_agent` 最长 10 秒；每次超时后先检查状态，无有效进展时累计等待最多 30 秒，禁止 120 秒等待。
-- Before any wait, inspect the current Worker state. If `list_agents` reports the Worker as terminal or `completed`, do not call `wait_agent`; review the available result immediately.
-- Keep synthesis, source reconciliation, login/session actions, browser interactions that mutate state, and external writes with the main agent.
+子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本 Skill 的联网调研工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原 Fast Lane 委派合同已移除，可从仓库 git 历史恢复。
 
 ## 前置检查
 
@@ -215,30 +207,9 @@ curl -s "http://localhost:3456/close?target=ID"
 
 Proxy 持续运行，不建议主动停止——重启后需要在浏览器中重新授权 CDP 连接。
 
-## 并行调研：多 Worker 分治策略
+## 并行调研
 
-任务包含多个**独立**调研目标时（如同时调研 N 个项目、N 个来源），鼓励合理分治给子 Agent 并行执行，而非主 Agent 串行处理。
-
-**好处：**
-- **速度**：多子 Agent 并行，总耗时约等于单个子任务时长
-- **上下文保护**：抓取内容不进入主 Agent 上下文，主 Agent 只接收摘要，节省 token
-
-**并行 CDP 操作**：每个子 Agent 在当前用户浏览器实例中，自行创建所需的后台 tab（`/new`），自行操作，任务结束自行关闭（`/close`）。所有子 Agent 共享一个浏览器、一个 Proxy，通过不同 targetId 操作不同 tab，无竞态风险。
-
-**子 Agent Prompt 写法：目标导向，而非步骤指令**
-- 必须在子 Agent prompt 中写 `必须加载 web-access skill 并遵循指引` ，子 Agent 会自动加载 skill，无需在 prompt 中复制 skill 内容或指定路径。
-- 子 Agent 有自主判断能力。主 Agent 的职责是说清楚**要什么**，仅在必要与确信时限定**怎么做**。过度指定步骤会剥夺子 Agent 的判断空间，反而引入主 Agent 的假设错误。**避免 prompt 用词对子 Agent 行为的暗示**：「搜索xx」会把子 Agent 锚定到 WebSearch，而实际上有些反爬站点需要 CDP 直接访问主站才能有效获取内容。主 Agent 写 prompt 时应描述目标（「获取」「调研」「了解」），避免用暗示具体手段的动词（「搜索」「抓取」「爬取」）。
-
-本节只决定是否拆成多个 Worker，并不决定是否委派。单仓库、单页面、单来源或单问题仍按
-`Worker Routing` 至少交给一个 Worker；任务较小时不再继续拆分。
-
-**多 Worker 分治判断标准：**
-
-| 适合多个 Worker 并行 | 只使用一个 Worker |
-|----------|-----------|
-| 目标相互独立，结果互不依赖 | 目标有依赖关系，下一个需要上一个的结果 |
-| 每个子任务量足够大（多页抓取、多轮搜索） | 简单单页或单仓库查询 |
-| 需要 CDP 浏览器或长时间运行的任务 | 几次 WebSearch / Jina 就能完成的轻量查询 |
+多个独立目标仍可并行派发子代理：仅当用户明确要求、或主 agent 判断并行能实质缩短等待且各目标独立、可独立验证。每个子代理自行加载本 Skill 并遵循前置检查与浏览器操作指引，任务结束关闭自己创建的 tab、保留用户原有 tab。原「多 Worker 分治策略」与强制委派规则已随子代理委派暂停移除（2026-08-06）。
 
 ## 信息核实类任务
 

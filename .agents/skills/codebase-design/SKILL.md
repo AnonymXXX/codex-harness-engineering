@@ -7,12 +7,9 @@ description: Design deep modules, clean interfaces, adapters, and test seams. Us
 
 Use a small shared vocabulary to design code that is easier for humans and Codex to change.
 
-## Worker Routing
+## Worker Routing (PAUSED)
 
-Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
-
-- Use `deepseek_v4_flash_worker` with `Route: codebase-design/evidence` for independent module, interface, reference, and seam evidence gathering; return findings for the main agent's design decision.
-- Only after the main agent freezes the design and public seam, use `deepseek_v4_flash_worker` with `Route: codebase-design/implementation` for bounded implementation-only work; keep architecture, trade-offs, coordination, integration, and final validation with the main agent.
+子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
 
 ## Vocabulary
 

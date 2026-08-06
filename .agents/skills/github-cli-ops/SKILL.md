@@ -7,12 +7,9 @@ description: Operate GitHub platform workflows through the official `gh` CLI and
 
 Use this skill when the user wants the agent to operate GitHub through the official `gh` CLI. Prefer `gh` and `gh api` over browser automation for GitHub platform operations. Use plain `git` for version-control operations that Git can already perform. Use a browser only when the user needs a visual check, screenshot, login UI, or a GitHub website flow that cannot be completed through the CLI/API.
 
-## Worker Routing
+## Worker Routing (PAUSED)
 
-Follow the shared dispatch, concurrency, safety, and review rules in `~/.codex/docs/workflows/harness-engineering.md`; this section maps only this skill's phases.
-
-- Use `deepseek_v4_flash_worker` with `Route: github-cli-ops/inventory` only for read-only inventory of repositories, refs, objects, local state, and checks; return evidence without changing external state.
-- Keep all external GitHub mutations and Git writes with the main agent, including issues, pull requests, settings, Actions, releases, secrets, pushes, and tags.
+子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
 
 ## Operating Model
 
