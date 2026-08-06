@@ -4,6 +4,8 @@ Use harness engineering as the default way to work across projects: choose propo
 
 ## Risk Lanes
 
+This document is the complete reference. The harness-engineering Skill restates only the Fast Lane run-time contract so Fast Lane work does not need to read this file.
+
 Choose the lightest lane that safely covers the observed blast radius. Escalate when repository evidence contradicts the initial classification; do not escalate merely because a heavier check or another skill exists.
 
 ### Fast Lane
