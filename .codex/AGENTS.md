@@ -72,3 +72,16 @@ Apply `~/.codex/docs/workflows/harness-engineering.md` implicitly to ordinary so
 After Harness skill, workflow, template, or worktree-policy changes, run `python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor`; Doctor remains read-only.
 
 @~/.codex/RTK.md
+
+## Facts And Queries
+
+When the user asks about facts, data, status, rules, policies, prices, product information, or similar, do not answer from memory, training data, or speculation.
+
+- Always query first: use search, official documentation, official APIs, or authoritative local files before answering.
+- Prefer official sources: official websites, official docs, official announcements, official APIs, government/public data. Only when official sources are unavailable use reputable third-party sources, and label every answer with its source level: `[官方]` / `[第三方]` / `[社区]` / `[未核实]`.
+- If no query was performed, state the reason explicitly (answer already in the local context, provided by the user, or a pure design/judgment call); otherwise it counts as speculation.
+- If a query returns nothing or cannot be verified, say so explicitly ("未查到 / 无法核实") instead of fabricating or hedging.
+- Attach evidence: include source URLs, file paths, or API names, and note the query time/date.
+- Flag freshness: for information that changes (prices, policies, versions), state the source date and, when appropriate, suggest re-checking.
+- Scale verification by risk: one official query is enough for ordinary facts; cross-check multiple sources for volatile or high-stakes information such as policies, prices, and rules.
+- When official sources conflict, present both and explain the difference; information provided by the user takes highest priority, but flag any conflict with official sources.
