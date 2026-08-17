@@ -66,9 +66,11 @@ description: >-
    - Build mode output: `dist/build/mp-weixin`.
    - Dev mode output: `dist/dev/mp-weixin`.
    - Verify it exists and contains `project.config.json` and `app.json` (or equivalent mini-program root files) before continuing.
+   - Treat the output's generated `project.config.json` as authoritative for that output root. Never replace it with a repository-root or source-tree `project.config.json`.
 6. Resolve AppID.
    - Prefer the built output `project.config.json`.
    - Fall back to `src/manifest.json` or user-provided AppID.
+   - Record this value as the expected AppID. Stop if the available sources disagree, or if the resolved value is empty, `touristappid`, or another test/placeholder value.
 7. Resolve command version and upload description.
    - For build upload, use the synchronized version from step 3.
    - For dev upload, use read-only version resolution: user-provided version, then `src/manifest.json` or `manifest.json` `versionName`, then `package.json` version. Do not edit files for dev upload.
@@ -77,14 +79,20 @@ description: >-
    - Default robot is `1` only when using `miniprogram-ci`; DevTools CLI does not use robot.
 8. Prefer WeChat DevTools CLI for upload/preview.
    - Resolve CLI path (see WeChat DevTools CLI section).
-   - Prepare a stable upload directory (recommended):
-     - Copy the resolved `mp-weixin` output into `<repo>/.tmp/upload-mp-weixin/`.
-     - Ensure `project.config.json` has `miniprogramRoot`/`srcMiniprogramRoot` of `"./"` when missing.
-     - Upload from this stable copy instead of a live watch-output directory when possible.
+   - Use the freshly generated `dist/build/mp-weixin` directly by default. A completed build output is already stable.
+   - For dev mode, stop the watcher when practical and use the completed `dist/dev/mp-weixin` directly.
+   - Prepare `<repo>/.tmp/upload-mp-weixin/` only when the resolved output is still volatile or a stable copy is otherwise necessary:
+     - Recreate only that exact task-owned temporary directory before copying; do not merge a fresh build into stale files.
+     - Copy the complete generated output, including its own `project.config.json`.
+     - Never overlay that file with a repository-root or source-tree project config.
+     - When the copied directory itself is the mini-program root, `miniprogramRoot` and `srcMiniprogramRoot` must be absent or `"./"`. Reject a copied config that still points to `dist/build/mp-weixin/`, `dist/dev/mp-weixin/`, or another nested source path.
    - Optionally `cli open --project <path>` before `upload`/`preview` if the first compile attempt fails with missing `app.json`.
+   - Treat a successful `cli open` only as confirmation that the IDE accepted the path; it does not prove that the project is bound to the expected AppID.
    - Run upload or preview with DevTools CLI.
+   - Apply the DevTools AppID Binding Guardrail before treating the command as successful.
 9. Fall back to `miniprogram-ci` only when step 8 cannot proceed.
    - Explain the fallback reason to the user first.
+   - Do not treat `41002 appid missing`, `测试号不支持上传`, or an AppID mismatch as a generic CLI availability failure. Resolve the DevTools project binding or stop; do not fall back solely because of one of these errors.
    - Resolve private key path:
      - User-provided path, or
      - project-local `.tmp/private.<appid>.key`, or
@@ -104,6 +112,17 @@ description: >-
     - If commit, tag, or push fails, report the exact failure and do not hide that the upload itself already succeeded.
     - Skip this step for dev upload and all preview requests.
 12. Report whether the command succeeded, the output mode (`dev` or `build`), output directory, tool used (`WeChat DevTools CLI` or `miniprogram-ci`), the AppID, version, robot when applicable, description, tag/push status for build uploads, and whether the result is a development version or preview QR. For dev upload, explicitly report that version sync and tag/push were skipped because `dev` mode is for development validation. State that the uploaded result is a development version and stop; do not offer or attempt experience-version selection.
+
+## DevTools AppID Binding Guardrail
+
+Apply this guardrail to every DevTools CLI upload or preview:
+
+1. Compare the user-requested AppID when present, the expected AppID resolved from project files, and the AppID reported by the CLI. All available values must match exactly.
+2. For upload, require the CLI output to report the expected AppID, such as `使用 AppID: <expected-appid>`, before accepting `upload` success.
+3. Stop immediately when the IDE or CLI shows `41002 appid missing`, `appid missing`, `测试号不支持上传`, a test/tourist project, or any AppID mismatch. Do not upload, commit version files, create a tag, or push.
+4. Do not edit WeChat DevTools internal cache or local-storage files to manufacture a binding. Reopening the same path after changing `project.config.json` may reuse an earlier unbound/test-project cache entry and is not a valid fix.
+5. If a new path was cached as unbound, close it. Prefer rebuilding the exact validated source and version at a project output path already imported for the expected AppID; otherwise stop and require the project to be imported and bound manually in DevTools.
+6. Re-run the CLI command after correcting the path or binding, and accept success only after the expected AppID is reported.
 
 ## Upload Description Policy
 
@@ -213,12 +232,12 @@ git push origin <current-branch> v<version>
 
 ## Command Templates
 
-In every command below, `<absolute-mp-weixin-output-dir>` is the freshly generated output for the resolved mode, or preferably a stable copy at `<repo>/.tmp/upload-mp-weixin`:
+In every command below, `<absolute-mp-weixin-output-dir>` is the freshly generated output for the resolved mode. Use a stable copy only under the step 8 conditions:
 
 ```text
 build -> <repo>/dist/build/mp-weixin
 dev   -> <repo>/dist/dev/mp-weixin
-stable copy (recommended) -> <repo>/.tmp/upload-mp-weixin
+stable copy (only when needed) -> <repo>/.tmp/upload-mp-weixin
 ```
 
 ### Primary: WeChat DevTools CLI
@@ -263,19 +282,20 @@ Generate a preview QR code:
 
 Preview output should default to `.tmp/miniprogram-ci-preview.png` unless the user specifies another path. The DevTools CLI preview command has no description flag; any recorded preview description still follows `build` -> `（RELEASE）` and `dev` -> `（UAT）`.
 
-Recommended stable-copy prep before CLI upload:
+Stable-copy prep when the generated output cannot be used directly:
 
 ```bash
-rm -rf <repo>/.tmp/upload-mp-weixin
+# if this exact task-owned directory exists, move it to Trash before recreating it
 mkdir -p <repo>/.tmp/upload-mp-weixin
 cp -R <absolute-mp-weixin-output-dir>/. <repo>/.tmp/upload-mp-weixin/
-# ensure miniprogramRoot is "./" in project.config.json when missing
+# keep the generated project.config.json; never overlay a repository-root config
+# require miniprogramRoot/srcMiniprogramRoot to be absent or "./"
 ```
 
 If CLI reports `app.json is not found in the project root directory`:
 
 1. Confirm `app.json` exists in the project root used for `--project`.
-2. Prefer uploading from `.tmp/upload-mp-weixin` rather than a live watch output.
+2. Stop a live watcher or prepare `.tmp/upload-mp-weixin` under the stable-copy rules above.
 3. Run `cli open --project <path>` once, then retry upload.
 4. Only then consider `miniprogram-ci` fallback if a key is available.
 
@@ -360,6 +380,10 @@ dev:   release v<版本号> 验证小程序当前构建效果（UAT）
 - Do not add upload private keys to Git.
 - Do not echo private key contents into logs.
 - Do not upload when the latest build failed.
+- Do not accept `cli open` success as AppID validation.
+- Do not upload, commit, tag, or push after `41002 appid missing`, `测试号不支持上传`, a tourist/test project, or an AppID mismatch.
+- Do not overwrite a generated output `project.config.json` with a config from another directory level.
+- Do not edit WeChat DevTools internal cache or local-storage files to force an AppID binding.
 - Never access the WeChat public platform, request a platform login, or attempt to select the uploaded development version as the experience version.
 - Do not run `miniprogram-ci` from the repository root when avoidable, because it may create 32-character hash temporary directories in the current working directory.
 - Do not fall back to `miniprogram-ci` silently; always state the DevTools failure or user request reason first.
