@@ -5,11 +5,7 @@ description: Analyze git status and diffs, group related changes into safe commi
 
 # Git Auto Commit
 
-Use `references/git-commit-command.md` as the source reference for the original `/commit` command behavior that this skill was derived from.
-
-## Worker Routing (PAUSED)
-
-子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
+Use [message examples](references/git-commit-command.md) only when preparing a commit body. This skill governs commit grouping and message format; the global Git worktree workflow governs isolation, preflight, and push authorization.
 
 ## Inspect Repository State
 
@@ -22,11 +18,20 @@ Use `references/git-commit-command.md` as the source reference for the original 
 
 ## Decide Commit Groups
 
-- Split commits when files belong to different modules, behaviors, or business changes.
-- Keep a mixed single file as one commit; do not try to split hunks out of one file.
-- Merge small edits into one commit when they serve the same feature or fix and are easy to explain together.
-- Prefer splitting commits when code changes are mixed with docs, generated deliverables, config-only changes, or unrelated module work.
-- Prefer the smallest number of commits that still preserves clear history.
+- Group by user requirement and independently meaningful behavior, not by file type or directory. Code, tests, documentation, configuration, and required generated output for one requirement belong together.
+- Keep unrelated requirements and user work separate; prefer the smallest number of coherent commits.
+- Do not use `git add -p` or stage a mixed file wholesale. When task changes are attributable, reconstruct only those changes in a clean worktree from a verified base, or apply a reviewed non-interactive task patch to an isolated index. Check the resulting staged diff and preserve the original working file and any pre-existing staged boundary. Ask only when attribution, a required dependency, or the intended result remains unresolved.
+- Respect an existing staged boundary when it forms a coherent authorized change.
+
+## Converge One Requirement
+
+- Default to one final content commit for the current user requirement and its continuous feedback. Small fixes, style adjustments, and review corrections for the same outcome belong in that commit.
+- Do not interpret "one requirement" as "everything currently changed": unrelated requirements, independent business changes, and unrelated user work remain separate commits.
+- Avoid creating a commit after every feedback round. Finish and validate a coherent requirement before its first publication whenever practical.
+- If the requirement already has one unshared commit, amend it for later corrections when doing so is safe. If it has multiple unshared local checkpoint commits, squash them into one before the first push or MR/PR.
+- After amend, squash, or rebase changes the tested commit, rerun the relevant validation and `git diff --check`.
+- Treat a branch that already exists on a remote as shared. Never automatically rebase, amend, or force-push shared history; prefer MR/PR squash so the target receives one content commit. Require separate explicit authorization before `--force-with-lease`.
+- Allow a platform-required merge commit, but keep only one content commit for the requirement. Never rewrite an already integrated target branch solely to clean old history.
 
 ## Stage Safely
 
@@ -58,25 +63,13 @@ Use `references/git-commit-command.md` as the source reference for the original 
 ## Execute Commits
 
 - If the user clearly asks to commit changes, do not pause for confirmation.
-- Commit one logical group at a time, then rerun `git status --short`.
+- Commit one requirement-level logical group at a time, then rerun `git status --short`.
 - Continue until the requested changes are committed or the remaining files are intentionally left out.
 - Respect an existing staged set unless it is obviously broken and the user explicitly asks for regrouping.
-- If the user also asks to push, inspect the current branch and remote first, then run `git push`.
+- If the user also asks to push, follow [Git Worktree Workflow](../../../.codex/docs/workflows/git-worktree.md#remote-integration): inspect the target and task range, converge unshared commits, validate, and run integration preflight before an authorized push.
 - If push fails, report the exact error and keep the local commit intact.
 - For commits with a body, use this safe sequence: write a temporary message file, `git commit -F <message-file>`, verify with `git log --format=%B -1 HEAD`, then remove the temporary file.
 
 ## Report Results
 
-- Keep the commit report in plain text; do not use code blocks for the result summary.
-- After each commit, report `✅ [模块/文件名] 提交成功: <标题>`.
-- After all requested commits finish, report `🎉 所有变更处理完毕`.
-- If anything is intentionally left uncommitted, say so explicitly.
-
-## Grouping Heuristics
-
-- Different module and different behavior: split into separate commits.
-- Same module and same feature with small edits: merge into one commit.
-- Same file with mixed logic: keep together and summarize primary and secondary changes.
-- Mixed commit that is intentionally kept together: include a body explaining each secondary change.
-- Subject-only commit: allowed only for one clear logical change.
-- Existing staged content: treat as the current commit scope unless the user requests regrouping.
+Report each resulting commit hash and Chinese subject, validation, remaining changes, and actual local/remote state. Do not claim that all changes were handled when files were intentionally left out.

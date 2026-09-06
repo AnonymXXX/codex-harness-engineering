@@ -70,23 +70,24 @@ Codex 只能分析当前任务中你明确授权且本机可访问的内容。�
 
 - 核心工作流：`harness-engineering`，以及 `codebase-design`、`diagnosing-bugs`、
   `domain-modeling`、`tdd` 四个核心工程 Skill。
-- 常用领域 Skill：`git-auto-commit`、`github-cli-ops`、`release-ops`、`web-access`、
+- 常用领域 Skill：`git-auto-commit`、`github-cli-ops`、`release-ops`、`ego-browser`、
   `frontend-design`、`develop-uniapp-miniapp`、`wechat-miniprogram-ci-upload`。
 
 ## 安装
 
-本机已经安装时直接使用。换机或重装时，在 macOS 上安装 Codex CLI、Git、Python 3 和 GitHub CLI，
-然后手动创建符号链接：
+本机已经安装时直接使用。换机或重装时，在 macOS 上安装 Codex CLI、Git、`uv`、GitHub CLI
+和 ego lite，然后手动创建 Harness 符号链接。`ego-browser` 由 ego lite 提供，不由本仓库复制：
 
 ```bash
 gh repo clone AnonymXXX/codex-harness-engineering ~/.local/share/codex-harness-engineering
 ln -s ~/.local/share/codex-harness-engineering/.codex/AGENTS.md ~/.codex/AGENTS.md
-ln -s ~/.local/share/codex-harness-engineering/.codex/RTK.md ~/.codex/RTK.md
 ln -s ~/.local/share/codex-harness-engineering/.codex/docs ~/.codex/docs
 for skill in ~/.local/share/codex-harness-engineering/.agents/skills/*; do
   ln -s "$skill" ~/.agents/skills/
 done
-python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write
+uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write
+uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --check
+uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor
 ```
 
 链接目标已存在时先用 `/usr/bin/trash` 备份再链接；安装器不会复制或覆盖机器相关的

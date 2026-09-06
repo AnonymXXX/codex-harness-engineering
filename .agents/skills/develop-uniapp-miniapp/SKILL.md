@@ -9,23 +9,19 @@ Use this skill to deliver uni-app mini-program frontend work, from narrow fixes 
 
 Do not use this skill for a native WeChat mini-program repo unless the task is explicitly to migrate that repo to uni-app.
 
-## Worker Routing (PAUSED)
-
-子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
-
 ## Workflow
 
 1. Confirm the repo is a uni-app mini-program project, or that the user explicitly asked to create or migrate one.
 2. If the directory is empty or near-empty and the user asked to create a uni-app WeChat mini-program project, scaffold from `references/project-bootstrap.md`.
-3. Check whether the root is a Git repository. If it is not, run `git init`.
-4. Check whether a root `AGENTS.md` exists. If the repo is confirmed as uni-app and the file is missing, create it using `references/activation-and-agents.md`.
+3. Inspect repository state. Initialize Git as part of an explicitly requested new-project bootstrap or Git setup; do not initialize an existing directory solely because the skill was loaded.
+4. Read root `AGENTS.md` and `DESIGN.md` when present. Create missing instructions only for requested bootstrap/documentation work or after the Harness Capture Gate; see `references/activation-and-agents.md`.
 5. If the repo includes a matching local prototype, HTML mock, Figma handoff, or other visual artifact for the surface, treat that artifact as the visual source of truth before choosing abstractions.
 6. Choose a capability mode before planning files: small change, feature slice, frontend foundation, or prototype translation.
 7. For small changes, identify the narrowest task scope, then decide whether new UI or logic belongs in the route file, the route's `components/`, `hooks/`, `data.ts`, or a shared abstraction.
 8. For feature slices, early skeletons, or explicit "complete this module" requests, plan the coherent set of pages, routes, route-local components, hooks, mock/API modules, stores, scroll/list surfaces, empty/error/loading states, and navigation in one pass.
 9. Apply this skill's rules only to newly added code or to existing code the user explicitly asked to modify.
 10. Read only the references relevant to the current task.
-11. Before finishing structural or layout refactors, run `pnpm type-check`, `pnpm lint`, and when the repo exposes a platform build script, a target build such as `pnpm build:mp-weixin`.
+11. Before finishing structural or layout refactors, run the existing typecheck/lint scripts using the project's package manager, plus its target platform build (for example `pnpm build:mp-weixin` when present).
 
 For WeChat Mini Program CI upload, preview QR, upload private key, `miniprogram-ci`, 上传开发版, or 上传体验版 requests, use `$wechat-miniprogram-ci-upload` instead of expanding this development skill.
 
@@ -47,7 +43,7 @@ For WeChat Mini Program CI upload, preview QR, upload private key, `miniprogram-
 - Only when no UI source is provided should the implementation choose a default visual direction; in that case prefer a design that matches the current page and, when the task is visual, use the `frontend-design` skill guidance.
 - Do not add active-state `translateY`, vertical lift, or similar positional displacement to tabbar items by default; only use that kind of motion when the user explicitly asks for a special interaction style.
 - Use a shared generic `PageLayout` for all newly added route pages.
-- Every confirmed uni-app mini-program project should have one shared global modal capability; reuse an existing global modal host and wrapper when present, otherwise add a shared `AppModal`, `modalStore`, and `useAppModal`.
+- Every confirmed uni-app mini-program project should have one shared global modal capability; reuse an existing global modal host and wrapper when present, otherwise add a shared `AppModal`, `modalStore`, and `useAppModal` when the requested feature or foundation work needs that capability. Small unrelated edits do not require introducing it.
 - Keep startup pages, `tabBar` pages, and package-shared resources in the main package.
 - When the app needs custom bottom tab navigation and can use Vue/Tailwind UI, default to a shared Vue tabbar mounted through the page shell instead of native `pages.json` `tabBar`; use official `custom-tab-bar/` only when the repo already uses it or the user explicitly asks for it.
 - For newly added Vue SFCs, default to `Composition API` with `<script setup lang="ts">`.
@@ -57,8 +53,8 @@ For WeChat Mini Program CI upload, preview QR, upload private key, `miniprogram-
 - Prefer one explicit vertical scroll surface per page region; avoid nested vertical `scroll-view`s unless the boundaries are deliberate and stable.
 - Follow the scroll-height allocation rules: fixed sections use `shrink-0`, scroll parents use `min-h-0` or `h-0`, and sticky-plus-nested surfaces may require measured height.
 - When defining custom Vue events in new code, use camelCase event names in `defineEmits` and `emit`, but consume them with hyphenated listeners in parent templates such as `@quick-action`.
-- Use `pnpm` as the default package manager for dependency installation, script execution, and starter projects unless the user explicitly requires a different package manager.
-- Git handling in this skill is limited to first-run repository initialization. For staging, commits, commit messages, push, or repository cleanup requests, use `$git-auto-commit`; for release promotion, cherry-pick, tags, or production branch publishing, use `$release-ops`.
+- Preserve the project's declared package manager and lockfile. Use `pnpm` for a new project with no established choice unless the user specifies another manager.
+- Git initialization is limited to requested bootstrap or Git setup. For staging, commits, commit messages, push, or repository cleanup requests, use `$git-auto-commit`; for release promotion, cherry-pick, tags, or production branch publishing, use `$release-ops`.
 
 ## Capability Modes
 
@@ -120,9 +116,9 @@ If the repo looks like a native WeChat mini-program rather than uni-app, do not 
 
 Treat the working directory as an empty bootstrap target when it contains no project files or only trivial files such as `.git`, `.gitignore`, `.DS_Store`, or editor metadata and the user explicitly asks to create a uni-app WeChat mini-program project.
 
-If the repo is confirmed and `AGENTS.md` is missing at the root, create one immediately using the standard snippet in `references/activation-and-agents.md`.
+For a confirmed repo with no root `AGENTS.md`, follow the documentation boundary in `references/activation-and-agents.md`; detection alone does not require a new document.
 
-If the repo is confirmed and the root is not a Git repository, initialize it with `git init`.
+Initialize Git only within requested new-project bootstrap or Git setup.
 
 ## Choose The Right Reference
 

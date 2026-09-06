@@ -1,26 +1,14 @@
 # Activation And AGENTS
 
-## First-Run Behavior
+## Creation Boundary
 
-When this skill is used in a confirmed uni-app mini-program repo and the root `AGENTS.md` file is missing, create it immediately.
+Read existing root `AGENTS.md` before editing. For an existing project, create missing instructions only when requested or when the Harness Capture Gate passes; skill activation alone does not authorize a document or repository initialization.
 
-When this skill scaffolds a new uni-app WeChat mini-program project in an empty directory, create the root `AGENTS.md` as part of the bootstrap flow.
-
-When this skill is used in a confirmed uni-app mini-program repo and the root is not a Git repository, initialize it with `git init`.
-
-## Confirmation Signals
-
-Create the file when the repo shows several of these:
-
-- `package.json` with `@dcloudio/uni-*`
-- `manifest.json` or `src/manifest.json`
-- `pages.json` or `src/pages.json`
-- `src/pages` or `pages*`
-- Vite or CLI setup for uni-app
+For an explicitly requested new uni-app WeChat mini-program bootstrap, create a minimal root `AGENTS.md` and initialize Git when the directory is not already part of a repository. Confirm the framework using the detection rules in [SKILL.md](../SKILL.md#detect-the-project-first); do not infer uni-app from native WeChat files alone.
 
 ## Root AGENTS.md Template
 
-Use this content:
+Adapt this template to confirmed project conventions; do not copy defaults that contradict an existing framework, package manager, or layout:
 
 ```md
 Use $develop-uniapp-miniapp by default for new uni-app mini-program work in this repository.
@@ -33,13 +21,12 @@ Use $develop-uniapp-miniapp by default for new uni-app mini-program work in this
 - Apply skill rules to newly added code and to existing code only when the user explicitly asks to modify it.
 - Do not proactively rewrite unrelated existing code to satisfy the skill.
 - For all newly added visible text, do not use a font size smaller than `20rpx`.
-- Use `pnpm` as the default package manager unless the user explicitly requires another one.
+- Preserve the declared package manager and lockfile; use `pnpm` only for a new project without an established choice.
 - Do not promote project-specific brand names, business nouns, private headers, or private protocols into generic abstractions.
 ```
 
 ## Existing Code Boundary
 
-- Creating the root `AGENTS.md` is allowed.
-- Initializing Git is an allowed first-run hygiene task.
+- Apply the creation boundary above; existing-project edits do not require bootstrap side effects.
 - Do not stage, commit, push, tag, or change branches from this skill; use `$git-auto-commit` or `$release-ops` for those workflows.
 - Do not treat the absence of that file as permission to refactor the repo.

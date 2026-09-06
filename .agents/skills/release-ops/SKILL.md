@@ -7,10 +7,6 @@ description: Handle release promotion requests that inspect commits on `uat`, fi
 
 Use this skill for git release promotion tasks that follow a repeatable backport workflow.
 
-## Worker Routing (PAUSED)
-
-子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
-
 ## Defaults
 
 - Default source branch: `uat`
@@ -39,7 +35,7 @@ Typical flow:
 
 1. Run `inspect` first.
 2. Review blockers, warnings, pending commits, target branch, and proposed tag.
-3. Run `execute` only when the script reports no blockers.
+3. Run `execute` only when the user has authorized this release scope (including its branch/tag publication) and the script reports no blockers. Inspect-only requests remain read-only; reuse an already confirmed commit list from the current task.
 4. If the only blocker is the pending-count threshold and the user confirms `全部执行`, rerun with `--confirm-all`.
 5. Use `--sync-target` with execute mode when the local target branch may be behind `origin/<target>`; it only fast-forwards when there are no local-only target commits.
 6. After execute mode finishes, the script restores the branch that was checked out before execution when possible.
@@ -132,7 +128,7 @@ Feature matching details live in `references/matching-rules.md`.
 
 - If the user explicitly says `major`, `minor`, or `patch`, follow SemVer exactly.
 - If the prompt implies execution but omits the bump type, infer it using `references/matching-rules.md`.
-- Only stop for confirmation when bump inference is not confident enough.
+- For the bump decision, ask only when inference is not confident enough. Other release authorization and risk stops still apply.
 - Use the latest SemVer tag reachable from the target branch only.
 - If the latest reachable tag is not `vX.Y.Z`, stop and report the problem.
 - Before creating the tag, clearly state: current reachable tag -> target tag.

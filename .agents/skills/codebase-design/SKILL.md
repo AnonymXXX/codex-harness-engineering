@@ -7,10 +7,6 @@ description: Design deep modules, clean interfaces, adapters, and test seams. Us
 
 Use a small shared vocabulary to design code that is easier for humans and Codex to change.
 
-## Worker Routing (PAUSED)
-
-子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
-
 ## Vocabulary
 
 - **Module**: anything with an interface and implementation, from a function to a package.
@@ -22,7 +18,7 @@ Use a small shared vocabulary to design code that is easier for humans and Codex
 - **Leverage**: capability gained by callers from a small interface.
 - **Locality**: bugs, changes, and verification stay concentrated.
 
-Use these terms consistently. Avoid vague substitutes like "component", "service", "API", or "boundary" when the exact concept is interface, seam, module, or adapter.
+Use precise terms when they clarify the design; preserve the project's established domain vocabulary and explain unfamiliar terms only when needed.
 
 ## Design Heuristics
 
@@ -35,11 +31,11 @@ Use these terms consistently. Avoid vague substitutes like "component", "service
 
 ## Harness Fit
 
-When a design decision becomes durable:
+When a design decision passes the Harness Capture Gate:
 
 - capture product behavior in product/spec docs;
 - capture engineering rules or invariants in engineering-rule docs;
 - add executable checks when the rule can be mechanically verified;
 - avoid broad refactors unless they directly support the current change or a documented execution plan.
 
-For implementation, hand off to `$tdd` after agreeing the public seam and expected behavior.
+Use `tdd` when test-first work is requested or meaningful behavioral regression coverage is needed; a design discussion alone does not require an implementation handoff.

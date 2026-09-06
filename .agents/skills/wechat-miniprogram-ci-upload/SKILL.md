@@ -14,14 +14,6 @@ description: >-
 
 # WeChat Mini Program CI Upload
 
-## Worker Routing (PAUSED)
-
-子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
-
-Use this skill for WeChat Mini Program upload and preview flows. **Prefer WeChat DevTools CLI** for upload and preview. Use `miniprogram-ci` only as a fallback when DevTools CLI is unavailable, not logged in, or the user explicitly asks for key-based CI upload.
-
-This is a release/CI workflow. Do not mix it into app feature development rules.
-
 ## Tool Priority
 
 1. **Primary: WeChat DevTools CLI**

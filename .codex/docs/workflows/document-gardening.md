@@ -4,12 +4,12 @@ Keep Harness documentation compact, discoverable, current, and verifiable withou
 
 ## Operating Modes
 
-Use a lightweight audit only when the current task changes `AGENTS.md`, changes durable documentation, captures an engineering rule, or closes an execution plan. Inspect the current repository and the files already in scope. For each changed statement, identify its canonical document and check nearby active guidance for duplication, contradiction, and obsolete wording. Do not read Codex memory during an ordinary task.
+Use a lightweight audit only when the current task changes `AGENTS.md`, changes durable documentation, captures an engineering rule, or closes an execution plan. Inspect the current repository and the files already in scope. For each changed statement, identify its canonical document and check nearby active guidance for duplication, contradiction, and obsolete wording. Use runtime-provided memory rules when relevant; do not perform a broad memory audit as part of ordinary gardening.
 
 Use deep gardening only when the user explicitly requests deep gardening, knowledge-base cleanup, or a project-stage closeout. Run the optional read-only Doctor section against the intended repository:
 
 ```bash
-python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full --section docs --repo-root <repo>
+uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor --full --section docs --repo-root <repo>
 ```
 
 The `docs` section is intentionally excluded from the default core and full Doctor checks. It scans Git-tracked Markdown only. When a linked worktree is passed explicitly, it scans that worktree; when a parent directory is passed, repositories are deduplicated by Git common directory.

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["PyYAML>=6,<7"]
+# ///
 """Health checks, safe worktree cleanup, and deterministic Harness indexing."""
 
 from __future__ import annotations
@@ -1190,6 +1194,7 @@ def _harness_checks(home: Path, skills: Sequence[dict[str, Any]]) -> list[dict[s
             )
 
     required_paths = [
+        home / ".codex" / "AGENTS.md",
         home / ".codex" / "docs" / "workflows" / "harness-engineering.md",
         home / ".codex" / "docs" / "workflows" / "git-worktree.md",
         home / ".codex" / "docs" / "workflows" / "document-gardening.md",

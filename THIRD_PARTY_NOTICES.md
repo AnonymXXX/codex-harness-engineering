@@ -11,27 +11,13 @@ retained in Git history, and are not replaced by the repository-level Apache Lic
 - Pinned upstream commit: `2235be7c60b551f5de82ade908fd3816455afcda`
 - License: Apache License 2.0
 - License copy: `.agents/skills/frontend-design/LICENSE.txt`
-- Local status: `SKILL.md` and `LICENSE.txt` are unmodified upstream copies. Their Git blob IDs are
-  `decdff43d05908b4c1fc2cfd2d80fc5743440934` and
-  `f433b1a53f5b830a205fd2df78e2b34974656c7b`, respectively.
+- Local status: `SKILL.md` is a local derivative, adapted for existing UI conventions,
+  proportionate design work, browser-acceptance authorization, and explicit knowledge capture.
+  Its original upstream Git blob ID is `decdff43d05908b4c1fc2cfd2d80fc5743440934`.
+  `LICENSE.txt` remains an unmodified upstream copy with Git blob ID
+  `f433b1a53f5b830a205fd2df78e2b34974656c7b`.
 
 The upstream directory does not contain a `NOTICE` file.
-
-## web-access
-
-- Upstream author: Eze (一泽 Eze)
-- Source: https://github.com/eze-is/web-access
-- Pinned upstream commit: `7af34af6a25940d917905f0e5f2a7ef056952971`
-- Upstream version: `2.5.3`
-- Local derivative version: `2.5.3+codex.1`
-- License: MIT, as declared in the upstream `SKILL.md` and README
-- License copy: `.agents/skills/web-access/LICENSE.txt`
-
-The local derivative changes `SKILL.md`, `scripts/browser-discovery.mjs`,
-`scripts/cdp-proxy.mjs`, and `scripts/check-deps.mjs` to distinguish loopback permission failures
-from browser or proxy availability failures. It also adds
-`tests/browser-discovery.test.mjs`. Files not listed here remain unmodified from the pinned
-upstream commit, except that upstream packaging files not used by this distribution are omitted.
 
 ## mattpocock/skills
 

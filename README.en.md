@@ -77,23 +77,25 @@ other devices; Codex should not infer conclusions from missing information.
 
 - Core workflow: `harness-engineering`, plus the four core engineering skills
   `codebase-design`, `diagnosing-bugs`, `domain-modeling`, and `tdd`.
-- Frequently used domain skills: `git-auto-commit`, `github-cli-ops`, `release-ops`, `web-access`,
+- Frequently used domain skills: `git-auto-commit`, `github-cli-ops`, `release-ops`, `ego-browser`,
   `frontend-design`, `develop-uniapp-miniapp`, and `wechat-miniprogram-ci-upload`.
 
 ## Installation
 
 If this machine is already installed, use it directly. To set up a new machine, first install Codex
-CLI, Git, Python 3, and GitHub CLI on macOS, then create the symlinks manually:
+CLI, Git, `uv`, GitHub CLI, and ego lite on macOS, then create the Harness symlinks manually.
+`ego-browser` is supplied by ego lite and is not copied from this repository:
 
 ```bash
 gh repo clone AnonymXXX/codex-harness-engineering ~/.local/share/codex-harness-engineering
 ln -s ~/.local/share/codex-harness-engineering/.codex/AGENTS.md ~/.codex/AGENTS.md
-ln -s ~/.local/share/codex-harness-engineering/.codex/RTK.md ~/.codex/RTK.md
 ln -s ~/.local/share/codex-harness-engineering/.codex/docs ~/.codex/docs
 for skill in ~/.local/share/codex-harness-engineering/.agents/skills/*; do
   ln -s "$skill" ~/.agents/skills/
 done
-python3 ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write
+uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write
+uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --check
+uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor
 ```
 
 If a link target already exists, back it up with `/usr/bin/trash` before linking. The installer does

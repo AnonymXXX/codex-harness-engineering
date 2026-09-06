@@ -31,45 +31,25 @@ def git_blob_sha(path: Path) -> str:
 
 
 class ThirdPartyNoticesTests(unittest.TestCase):
-    def test_frontend_design_matches_pinned_anthropic_snapshot(self) -> None:
+    def test_frontend_design_retains_upstream_license_and_marks_derivative(self) -> None:
         skill_root = ROOT / ".agents" / "skills" / "frontend-design"
 
-        self.assertEqual(
-            git_blob_sha(skill_root / "SKILL.md"),
-            "decdff43d05908b4c1fc2cfd2d80fc5743440934",
-        )
+        notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+        frontend_notice = notices.split("## frontend-design", 1)[1].split("## mattpocock/skills", 1)[0]
+        self.assertIn("`SKILL.md` is a local derivative", frontend_notice)
+        self.assertIn("original upstream Git blob ID is `decdff43d05908b4c1fc2cfd2d80fc5743440934`", frontend_notice)
         self.assertEqual(
             git_blob_sha(skill_root / "LICENSE.txt"),
             "f433b1a53f5b830a205fd2df78e2b34974656c7b",
         )
 
-    def test_web_access_records_its_upstream_and_local_derivative(self) -> None:
-        skill_root = ROOT / ".agents" / "skills" / "web-access"
-        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
-        license_text = (skill_root / "LICENSE.txt").read_text(encoding="utf-8")
-
-        self.assertIn('version: "2.5.3+codex.1"', skill)
-        self.assertIn("github: https://github.com/eze-is/web-access", skill)
-        self.assertIn(
-            'upstream_commit: "7af34af6a25940d917905f0e5f2a7ef056952971"',
-            skill,
-        )
-        self.assertIn("local_modifications: true", skill)
-        self.assertIn("MIT License", license_text)
-        self.assertIn("Copyright (c) 2026 Eze", license_text)
-        self.assertIn("Copyright (c) 2026 AnonymXXX (modifications)", license_text)
-
-    def test_root_notice_covers_frontend_design_and_web_access(self) -> None:
+    def test_root_notice_covers_frontend_design(self) -> None:
         notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
 
         self.assertIn("not replaced by the repository-level Apache License 2.0", notices)
         self.assertIn("## frontend-design", notices)
         self.assertIn("https://github.com/anthropics/skills", notices)
         self.assertIn("2235be7c60b551f5de82ade908fd3816455afcda", notices)
-        self.assertIn("## web-access", notices)
-        self.assertIn("https://github.com/eze-is/web-access", notices)
-        self.assertIn("7af34af6a25940d917905f0e5f2a7ef056952971", notices)
-        self.assertIn("2.5.3+codex.1", notices)
 
     def test_matt_skills_record_upstream_and_local_derivatives(self) -> None:
         notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")

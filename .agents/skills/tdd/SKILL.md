@@ -1,15 +1,11 @@
 ---
 name: tdd
-description: Implement behavior test-first with a red-green feedback loop. Use when building a concrete feature, fixing a bug with known expected behavior, adding regression coverage, or when the user asks for TDD, red-green-refactor, integration tests, public seam tests, or test-driven implementation.
+description: Implement behavior test-first with a red-green feedback loop. Use for explicit TDD requests or feature/bug work that needs meaningful behavioral regression coverage. Do not route reversible copy, formatting, or low-impact edits here merely because they change code.
 ---
 
 # Test-Driven Development
 
 Use red -> green feedback to build one vertical behavior slice at a time.
-
-## Worker Routing (PAUSED)
-
-子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
 
 ## Before Writing Tests
 
@@ -26,7 +22,7 @@ Use red -> green feedback to build one vertical behavior slice at a time.
 3. Implement only enough code to pass.
 4. Re-run the focused test.
 5. Repeat for the next behavior.
-6. Run broader validation at the end.
+6. Run other project-required checks relevant to the changed surface. Broaden or repeat passing checks only for new changes, failures, or unresolved risks.
 
 ## Test Quality
 
@@ -37,6 +33,6 @@ Use red -> green feedback to build one vertical behavior slice at a time.
 
 ## Harness Duties
 
-- If a newly discovered rule is reusable, capture it through `$domain-modeling`.
+- Apply the Harness Capture Gate before documenting a discovered rule; consult `domain-modeling` only for a material terminology or invariant decision.
 - If the rule is mechanically checkable, add or update a deterministic test/script/lint/CI check when appropriate.
 - For medium or large edits, follow the user's risk-based worktree and documentation workflow before implementation.

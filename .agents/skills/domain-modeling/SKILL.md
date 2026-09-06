@@ -5,7 +5,7 @@ description: Capture and sharpen a project's domain language, business invariant
 
 # Domain Modeling
 
-Analyze and sharpen project language and invariants without assuming they should be written down. Any durable documentation write must pass the Capture Gate in `~/.codex/docs/workflows/harness-engineering.md`.
+Analyze and sharpen project language and invariants without assuming they should be written down. Automatic durable knowledge capture must pass the Capture Gate in `~/.codex/docs/workflows/harness-engineering.md`.
 
 ## Explore First
 
@@ -46,4 +46,4 @@ Keep `AGENTS.md` short: use it as a map to durable docs, not an encyclopedia.
 
 When a durable decision crystallizes during a task, apply all three Capture Gate conditions before writing it. Product or operational decisions require explicit user confirmation and imminent implementation use. If existing sources conflict, report the conflict and do not choose a canonical answer automatically.
 
-When a rule can be checked mechanically, prefer adding or updating an executable check. If no check is added, state why.
+When a rule can be checked mechanically, consider a scoped executable check. Explain why none was added only when it materially affects the task or the user asks.

@@ -7,9 +7,8 @@ description: Operate GitHub platform workflows through the official `gh` CLI and
 
 Use this skill when the user wants the agent to operate GitHub through the official `gh` CLI. Prefer `gh` and `gh api` over browser automation for GitHub platform operations. Use plain `git` for version-control operations that Git can already perform. Use a browser only when the user needs a visual check, screenshot, login UI, or a GitHub website flow that cannot be completed through the CLI/API.
 
-## Worker Routing (PAUSED)
 
-子代理强制委派已暂停（用户决定，2026-08-06）。主 agent 默认直接完成本技能范围内的工作；仅当用户明确要求、或并行派发能实质缩短等待且任务边界清晰、可独立验证时才使用子代理。原路由说明已移除，可从仓库 git 历史恢复。
+Established user authorization persists for the current task and stated target/impact; do not ask again solely because a later step says “confirm.” Complete safe preparation first. Read-only requests never authorize mutations, and an unclear target or uncovered production, permission, public-sharing, release, or destructive effect still requires explicit authorization.
 
 ## Operating Model
 

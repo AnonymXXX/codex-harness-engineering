@@ -14,6 +14,15 @@ import unittest
 
 
 MODULE_PATH = Path(__file__).parents[1] / "scripts" / "harness_doctor.py"
+REPO_ROOT = Path(__file__).parents[4]
+GLOBAL_AGENTS = REPO_ROOT / ".codex" / "AGENTS.md"
+HARNESS_SKILL = Path(__file__).parents[1] / "SKILL.md"
+HARNESS_WORKFLOW = REPO_ROOT / ".codex" / "docs" / "workflows" / "harness-engineering.md"
+WORKTREE_WORKFLOW = REPO_ROOT / ".codex" / "docs" / "workflows" / "git-worktree.md"
+GARDENING_WORKFLOW = REPO_ROOT / ".codex" / "docs" / "workflows" / "document-gardening.md"
+WORKTREE_LEDGER_TEMPLATE = (
+    Path(__file__).parents[1] / "assets" / "project-harness" / "worktree-ledger.md"
+)
 SPEC = importlib.util.spec_from_file_location("harness_doctor", MODULE_PATH)
 doctor = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(doctor)
@@ -119,6 +128,26 @@ class SkillIndexTests(unittest.TestCase):
             )
             self.assertIn(str(expected), missing_paths)
 
+    def test_core_checks_require_global_agents(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+
+            checks = doctor._harness_checks(home, self.harness_skills())
+            missing_paths = {
+                (item.get("details") or {}).get("path")
+                for item in checks
+                if item["code"] == "harness-path-missing"
+            }
+
+            self.assertIn(str(home / ".codex" / "AGENTS.md"), missing_paths)
+
+    def test_worktree_ledger_tracks_browser_acceptance(self) -> None:
+        content = WORKTREE_LEDGER_TEMPLATE.read_text(encoding="utf-8")
+
+        self.assertIn("Browser acceptance:", content)
+        self.assertIn("not-applicable | pending | passed", content)
+
+
     def test_discovers_valid_skills_and_renders_stable_sorted_index(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "skills"
@@ -180,6 +209,161 @@ class SkillIndexTests(unittest.TestCase):
 
             self.assertEqual(0, result["exit_code"])
             self.assertEqual(0o644, index.stat().st_mode & 0o777)
+
+
+class PolicyDocumentationTests(unittest.TestCase):
+    def test_dirty_state_and_mechanical_conflicts_allow_safe_isolation(self) -> None:
+        workflow = WORKTREE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotIn("- Rebase or merge conflicts occur.", workflow)
+        self.assertNotIn(
+            "- The original worktree has uncommitted changes that might be touched by the task.",
+            workflow,
+        )
+        self.assertIn("reconstruct only attributable, authorized task changes", workflow)
+        self.assertIn("Resolve mechanical conflicts within the authorized task", workflow)
+        self.assertIn("Never use conflict resolution to discard user changes", workflow)
+        self.assertIn("bypass `STOP` or `MR_REQUIRED`", workflow)
+
+    def test_mixed_file_commit_preserves_original_state(self) -> None:
+        skill = (REPO_ROOT / ".agents/skills/git-auto-commit/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Do not use `git add -p` or stage a mixed file wholesale", skill)
+        self.assertIn("reconstruct only those changes in a clean worktree", skill)
+        self.assertIn("preserve the original working file", skill)
+        self.assertIn("pre-existing staged boundary", skill)
+
+    def test_harness_python_commands_use_uv(self) -> None:
+        paths = (
+            GLOBAL_AGENTS,
+            HARNESS_SKILL,
+            HARNESS_WORKFLOW,
+            WORKTREE_WORKFLOW,
+            GARDENING_WORKFLOW,
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "README.en.md",
+        )
+
+        for path in paths:
+            with self.subTest(path=path):
+                content = path.read_text(encoding="utf-8")
+                self.assertNotIn("python3 ~/.agents/skills/harness-engineering/", content)
+
+    def test_worktree_workflow_resolves_symlink_targets_before_editing(self) -> None:
+        content = WORKTREE_WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertIn("realpath", content)
+        self.assertIn("real Git repository", content)
+
+    def test_browser_acceptance_rule_does_not_block_browser_task_work(self) -> None:
+        content = HARNESS_WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertIn("post-implementation acceptance", content)
+        self.assertIn("web research", content)
+        self.assertIn("authenticated web operations", content)
+
+    def test_ego_browser_is_the_only_browser_workflow(self) -> None:
+        retired_browser_skill = "web" + "-access"
+        policy_paths = (
+            GLOBAL_AGENTS,
+            WORKTREE_WORKFLOW,
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "README.en.md",
+            REPO_ROOT / "THIRD_PARTY_NOTICES.md",
+        )
+
+        for path in policy_paths:
+            with self.subTest(path=path):
+                content = path.read_text(encoding="utf-8")
+                self.assertNotIn(retired_browser_skill, content)
+
+        global_rules = GLOBAL_AGENTS.read_text(encoding="utf-8")
+        self.assertIn("`ego-browser`", global_rules)
+        self.assertIn("`handOffTaskSpace`", global_rules)
+        self.assertIn("`completeTaskSpace`", global_rules)
+        self.assertFalse(
+            (REPO_ROOT / ".agents" / "skills" / retired_browser_skill).exists()
+        )
+
+    def test_explicit_push_request_counts_as_browser_acceptance(self) -> None:
+        # Entry points may link to the canonical rule instead of copying it.
+        for path in (GLOBAL_AGENTS, HARNESS_SKILL):
+            content = path.read_text(encoding="utf-8")
+            self.assertIn("harness-engineering.md#browser-acceptance", content)
+        for path in (HARNESS_WORKFLOW, WORKTREE_WORKFLOW):
+            content = path.read_text(encoding="utf-8")
+            self.assertIn("explicit current-task push request", content)
+            self.assertIn("Do not ask separately", content)
+
+        for path in (
+            Path(__file__).parents[1] / "assets" / "project-harness" / "exec-plan.md",
+            WORKTREE_LEDGER_TEMPLATE,
+        ):
+            with self.subTest(path=path):
+                content = path.read_text(encoding="utf-8")
+                self.assertIn("explicit push request", content)
+
+    def test_high_confidence_auto_integration_policy(self) -> None:
+        # Verify the complete authorization contract at its single owner.
+        # Entry-point links are checked separately so missing routing still fails.
+        for path in (GLOBAL_AGENTS, HARNESS_WORKFLOW):
+            self.assertIn(
+                "git-worktree.md#high-confidence-auto-integration",
+                path.read_text(encoding="utf-8"),
+            )
+        self.assertIn("git-worktree.md", HARNESS_SKILL.read_text(encoding="utf-8"))
+
+        for path in (
+            Path(__file__).parents[1] / "assets" / "project-harness" / "exec-plan.md",
+            WORKTREE_LEDGER_TEMPLATE,
+        ):
+            with self.subTest(path=path):
+                content = path.read_text(encoding="utf-8")
+                self.assertIn(
+                    "not-applicable | pending | passed | waived-by-high-confidence",
+                    content,
+                )
+                self.assertIn("High-confidence evidence:", content)
+
+        expected_report = "浏览器验收：未执行；满足高置信度自动集成条件，按策略豁免"
+        for path in (HARNESS_WORKFLOW,):
+            with self.subTest(path=path):
+                self.assertIn(expected_report, path.read_text(encoding="utf-8"))
+
+        workflow = WORKTREE_WORKFLOW.read_text(encoding="utf-8")
+        required_scenarios = (
+            "UI or non-UI",
+            "Every applicable test, lint, typecheck, build, and `git diff --check` passes",
+            "Static final-diff review finds no issue",
+            "`origin/dev`, `origin/develop`, `origin/test`, or `origin/uat`",
+            "no project rule or current-task instruction prohibits pushing",
+            "`DIRECT_FF`",
+            "`REBASE_THEN_FF`",
+            "`ALREADY_INTEGRATED`",
+            "`MR_REQUIRED` is report-only",
+            "production",
+            "force-push",
+            "Every applicable test",
+            "critical non-browser check",
+            "clean and current-task commits are fully isolated",
+            "data-migration",
+            "permission",
+            "security-sensitive",
+            "other-remote",
+            "retains the task worktree",
+        )
+        for marker in required_scenarios:
+            with self.subTest(scenario=marker):
+                self.assertIn(marker, workflow)
+
+    def test_global_rules_are_runtime_agnostic(self) -> None:
+        content = GLOBAL_AGENTS.read_text(encoding="utf-8")
+
+        self.assertNotIn("`question`", content)
+        self.assertNotIn("DeepSeek", content)
+        self.assertNotIn("opencode.db", content)
+        self.assertIn("`request_user_input`", content)
+        self.assertIn("native image input", content)
 
 
 class WorktreeTests(unittest.TestCase):
