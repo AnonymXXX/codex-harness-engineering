@@ -77,7 +77,7 @@ Use [Git Worktree Workflow](docs/workflows/git-worktree.md) for task isolation, 
 
 Normal non-forced pushes to `origin/dev`, `origin/develop`, `origin/test`, and `origin/uat`, including known non-production CI/deployment effects, have persistent authorization after required validation and preflight. Extensions require the workflow's user-confirmed repository allowlist and bounded existing non-production targets on `origin`. A project or current-task prohibition overrides persistent authorization. Other remotes, production targets/effects, tags, force pushes, and MR/PR creation or merge require explicit authorization.
 
-Validated commits and eligible integration are autonomous completion steps. `STOP` and `MR_REQUIRED` block integration; retain the worktree and report the reason. Stale cleanup follows the workflow's periodic cadence and clean/merged/inactive checks, not every task.
+Validated commits and [Local Auto-Merge](docs/workflows/git-worktree.md#local-auto-merge) are default completion steps; do not wait for another merge prompt. Local `main/master` merges do not grant remote push permission. Complete separately authorized remote integration automatically. `STOP` and `MR_REQUIRED` block the affected integration operation; retain the worktree and report the reason. Stale cleanup follows the workflow's periodic cadence and clean/merged/inactive checks, not every task.
 
 ## Subagent Delegation
 

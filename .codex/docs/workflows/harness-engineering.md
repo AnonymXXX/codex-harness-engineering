@@ -20,7 +20,7 @@ Use for cohesive local features and fixes that exceed the Fast Lane but do not t
 
 ### Heavy Lane
 
-Use for medium or large changes, shared behavior or contracts, configuration, generated artifacts, dependencies, migrations, releases, deployment, production operations, data, security, permissions, or unclear blast radius. Use the full worktree, documentation, validation, integration, and stop-condition workflow where applicable.
+Use for medium or large changes, shared behavior or contracts, configuration, generated artifacts, dependencies, migrations, releases, deployment, production operations, data, security, permissions, or unclear blast radius. Use proportionate validation and the integration/stop-condition workflow. Choose worktree isolation using the concrete criteria in [Git Worktree Workflow](git-worktree.md#when-to-use-a-worktree); the lane label alone does not require another checkout or a durable plan.
 
 File count is a signal, not a hard boundary. A one-file security change is Heavy Lane; a cohesive three-file local fix can remain Fast Lane.
 
@@ -53,7 +53,7 @@ A UI-affecting task may be implemented, validated with non-browser checks, and c
 
 ### High-confidence auto-integration
 
-[Git Worktree Workflow](git-worktree.md#high-confidence-auto-integration) is the single source for all seven eligibility gates, target authorization, and preflight actions. An unmet gate blocks integration, not safe local work. Apply its full gate before recording `waived-by-high-confidence`; report the check results, static review, target, and remote verification. Never infer MR/PR permission from `MR_REQUIRED`.
+[Local Auto-Merge](git-worktree.md#local-auto-merge) is the default local completion path and does not require remote push authorization. Pending unrequested browser acceptance alone does not block local merging and remains reported as pending. [Git Worktree Workflow](git-worktree.md#high-confidence-auto-integration) is the single source for all seven remote eligibility gates, target authorization, and preflight actions. An unmet remote gate blocks that remote operation, not eligible local completion. Apply its full gate before recording `waived-by-high-confidence`; report the check results, static review, target, and remote verification. Never infer MR/PR permission from `MR_REQUIRED`.
 
 ## Documentation Shape
 

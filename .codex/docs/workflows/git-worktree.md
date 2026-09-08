@@ -4,7 +4,7 @@ Use this workflow for medium or large file-modifying tasks inside a Git reposito
 
 ## When To Use A Worktree
 
-Use a task-specific worktree by default for medium or large changes, shared behavior, generated artifacts, configuration, deployment, data, security, permissions, production operations, or any unclear blast radius.
+Use a task-specific worktree when isolation provides concrete value: overlapping user changes, concurrent work, a long-running or interruptible task, broad shared behavior, or deployment, data, security, permission, production, or unclear effects. A cohesive Standard Lane change may use the safe current worktree; size, configuration files, or generated artifacts alone do not require another worktree. State the isolation reason briefly before editing.
 
 Do not create a task worktree for Fast Lane work: a clear, cohesive local change in one repository with a safe current worktree and no shared contracts, shared configuration, dependencies, generated artifacts, migrations, deployment, data, permissions, or security-sensitive behavior. It is also acceptable to edit in the current worktree for other clearly small and low-risk changes when existing uncommitted changes are unrelated and will not be touched, or when the user explicitly asks for that.
 
@@ -16,7 +16,9 @@ Before editing any path reached through a symbolic link, resolve it with `realpa
 
 ## Before Editing
 
-- If the current directory is not already a task-specific worktree, create a new worktree from the repository's integration branch.
+Apply the worktree-creation steps below only when isolation is needed under the criteria above. Otherwise inspect the current branch and status, record its starting OID and intended local integration target, and work there. An existing suitable task worktree is reused, not nested.
+
+- If isolation is needed and the current directory is not already a suitable task-specific worktree, create one from the repository's integration branch.
 - Determine the integration branch in this order: project `AGENTS.md` or documented project rule, the current branch's upstream integration branch, `origin/HEAD`, then common integration names such as `main`, `master`, or `develop`. If it is still ambiguous, ask the user before continuing.
 - Before creating the task worktree, identify existing changes and preserve them in the original worktree. Dirty or overlapping paths do not by themselves block a separate worktree: start from a verified committed base and reconstruct only attributable, authorized task changes there. If required uncommitted dependencies cannot be separated or their inclusion is not authorized, prepare the dependency diff and ask only about that scope.
 - Record the integration branch commit as the immutable task base before creating the task worktree. Keep that OID available for remote preflight and safe local synchronization.
@@ -64,12 +66,31 @@ Do not leave the integration or main worktree dirty just to record ledger status
 - If an aggregate command includes browser-driven checks, run separable non-browser tests, lint, typecheck, and build commands instead. Report browser coverage that could not be separated and was skipped.
 - If validation passes, automatically commit small low-risk implementation changes with a concise commit message unless the task is exploratory, temporary, explicitly marked no-commit, or the user asks to inspect the diff first.
 - For medium or large changes, briefly summarize the diff and validation result before committing, then continue without waiting unless the user asked to inspect the diff first or a stop condition applies.
-- Treat validated commit, eligible High-confidence auto-integration for UI or non-UI work, post-integration validation, and cleanup as the normal autonomous completion path. A qualifying UI task records browser acceptance as `waived-by-high-confidence`; an explicit current-task push request records `passed`; a commit-only request remains `pending` and does not itself authorize integration.
+- Treat validated commit, eligible local auto-merge, separately authorized remote integration, and cleanup as the normal autonomous completion path. Do not end with "ready to merge" or ask the user to repeat a merge request when the applicable gates pass. A UI task qualifying for remote auto-integration records browser acceptance as `waived-by-high-confidence`; an explicit current-task push request records `passed`; a commit-only request remains `pending` and does not itself authorize integration.
 - Before committing a medium or large change that was made in the current worktree, explain why skipping a task worktree is still safe, what validation passed, and whether unrelated user changes could be mixed in. Continue without waiting unless a `Stop And Ask` condition applies.
 - Keep local-target maintenance separate from remote integration. A divergent local `uat`, `main`, or other integration branch is not evidence that the remote target requires an MR and must not block an otherwise safe remote fast-forward.
-- A local integration branch may be fast-forwarded when it is clean, still points to the recorded task base, can accept the validated result with `--ff-only`, and remote integration is otherwise authorized. It does not need to match its upstream. If it moved or contains user changes, skip local synchronization and preserve user state without blocking an independently safe remote integration.
+- Apply [Local Auto-Merge](#local-auto-merge) independently of remote push authorization. If local state prevents merging, preserve it without blocking an independently safe remote integration.
 - Run the relevant validation again after any rebase or integration that changes the tested commit.
 - After remote integration, fetch the target again and verify the integrated task commit is its ancestor. Synchronize a safe local target when eligible, then remove the merged task worktree and local task branch unless the user asked to keep them. If the local target moved or contains user changes, skip only local synchronization; remote containment still proves the current task branch is safe to clean up.
+
+## Local Auto-Merge
+
+A request to implement or fix includes committing and merging the isolated, validated task into its identified local integration branch. Do this automatically; no separate "merge it" prompt is needed. This also applies to local `main` or `master` and repositories without a remote. It grants no remote push, PR/MR, deployment, release, or production authorization. Explicit "do not merge", "commit only", "keep the branch for review", project review requirements, and requests to inspect the diff first override this default.
+
+When remote integration is already authorized and eligible, complete its preflight/rebase/push first, then synchronize the local target to the final validated commit under the rules below. Otherwise complete eligible local merging without waiting for remote authorization. Do not rebase against a divergent local target merely to synchronize it after a successful remote integration; preserve it and report the mismatch.
+
+Before merging, require all of the following:
+
+- The intended local target and current-task range are known; task commits contain no unrelated work or unresolved decisions.
+- Proportionate project-required checks and static final-diff review pass. Required acceptance or approval is not outstanding. Browser acceptance that was not requested remains `pending` and does not alone block this local operation; never describe it as tested or passed.
+- The task worktree is clean. The target worktree is clean and not in active use by another task; never switch its branch, stash user work, or reset it to make integration possible. Inspect target state again immediately before mutation. If active use cannot be ruled out, retain the task result.
+- The update preserves existing target history, uses `--ff-only`, and has no unauthorized hook or external side effect.
+
+If the target is already an ancestor of the tested task commit, run `git -C <target-worktree> merge --ff-only <task-branch>`. If the target is not checked out, use a temporary integration worktree for that existing branch. If already working on the intended target, the scoped validated commit completes local integration.
+
+If the target advanced, inspect both ranges. For an unshared task branch with an attributable task base, replay only task commits using `git rebase --onto <local-target> <task-base> <task-branch>`, resolve only conflicts whose result is established by task evidence, rerun affected checks and final-diff review, then retry `--ff-only`. Never rebase a shared task branch or rewrite the target. Stop this operation on ambiguous conflicts or repeated target movement; preserve the task and report the concrete blocker.
+
+Verify `git merge-base --is-ancestor <task-commit> <local-target>` after integration. Report local and remote integration separately. When remote integration is unauthorized, finish with "merged locally; not pushed", rather than requesting permission for an optional push. Retain the task branch/worktree until any already-authorized remote integration finishes; otherwise a clean, inactive current-task worktree and branch may be removed after verified local containment, unless the user asked to keep them. Never delete a branch without verified containment or force-remove a worktree.
 
 ## Periodic Stale Cleanup
 
@@ -98,13 +119,13 @@ For UI-affecting work, an explicit current-task push request, including push-onl
 
 ### High-confidence auto-integration
 
-Without a push request or browser/user acceptance, automatically integrate UI or non-UI work only when all seven gates pass:
+These gates govern remote integration; local completion follows [Local Auto-Merge](#local-auto-merge). Without a push request or browser/user acceptance, automatically integrate UI or non-UI work remotely only when all seven gates pass:
 
 1. Requirements and scope are unambiguous, with no unresolved product or implementation choice.
 2. Every applicable test, lint, typecheck, build, and `git diff --check` passes.
 3. Static final-diff review finds no issue, and no critical non-browser check was skipped.
 4. The task worktree is clean and current-task commits are fully isolated from user changes.
-5. The target is exactly `origin/dev`, `origin/develop`, `origin/test`, or `origin/uat`, and no project rule or current-task instruction prohibits pushing.
+5. The target is exactly `origin/dev`, `origin/develop`, `origin/test`, or `origin/uat`, or an existing non-production target covered by the qualifying user-confirmed policy below; no project rule or current-task instruction prohibits pushing.
 6. Preflight returns `DIRECT_FF`, a safely handled `REBASE_THEN_FF`, or `ALREADY_INTEGRATED`.
 7. The change has no production, tag, force-push, other-remote, data-migration, permission, security-sensitive, or unauthorized external side effect.
 
@@ -164,7 +185,7 @@ Stop the affected operation and ask only when necessary input or authorization r
 - Existing changes cannot be attributed or safely isolated without overwriting user work or including unauthorized dependencies. First inspect the diff and try a separate worktree from a verified base; an unrelated dirty file is not a reason to ask.
 - The task worktree contains changes of unresolved ownership that cannot be left intact while completing the authorized task.
 - Validation remains blocked after reasonable in-scope diagnosis, and the next step needs new scope, authority, or unavailable input. A repairable test failure does not require confirmation; diagnose, fix, and rerun the affected checks before integration.
-- Any High-confidence auto-integration gate is unmet and no separate current-task authorization covers the intended action.
+- A remote High-confidence auto-integration gate is unmet, the remote operation is required for the requested outcome, and no separate current-task authorization covers it. An optional unauthorized push is reported as not performed; it does not block eligible local completion.
 - A rebase or merge conflict requires an unresolved product, contract, ownership, or authorization decision. Resolve mechanical conflicts within the authorized task when repository evidence determines the result, preserve both sides' intended behavior, and rerun relevant validation. Never use conflict resolution to discard user changes, rewrite shared history, or bypass `STOP` or `MR_REQUIRED`.
 - Remote preflight returns `STOP`, target movement repeatedly prevents a stable update, or the remote target is ambiguous.
 - Integration would require force push, reset, rebasing a shared branch, deleting unmerged work, or bypassing required platform approval.

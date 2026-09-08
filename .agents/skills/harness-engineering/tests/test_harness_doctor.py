@@ -356,6 +356,23 @@ class PolicyDocumentationTests(unittest.TestCase):
             with self.subTest(scenario=marker):
                 self.assertIn(marker, workflow)
 
+    def test_local_auto_merge_is_default_and_remote_authority_is_separate(self) -> None:
+        workflow = WORKTREE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("## Local Auto-Merge", workflow)
+        self.assertIn("no separate \"merge it\" prompt is needed", workflow)
+        self.assertIn("It grants no remote push", workflow)
+        self.assertIn("uses `--ff-only`", workflow)
+        self.assertIn("merged locally; not pushed", workflow)
+
+        entrypoint_markers = {
+            GLOBAL_AGENTS: "local-auto-merge",
+            HARNESS_SKILL: "local auto-merge",
+            HARNESS_WORKFLOW: "local-auto-merge",
+        }
+        for path, marker in entrypoint_markers.items():
+            with self.subTest(path=path):
+                self.assertIn(marker, path.read_text(encoding="utf-8").lower())
+
     def test_global_rules_are_runtime_agnostic(self) -> None:
         content = GLOBAL_AGENTS.read_text(encoding="utf-8")
 
