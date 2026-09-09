@@ -279,21 +279,26 @@ class PolicyDocumentationTests(unittest.TestCase):
 
         global_rules = GLOBAL_AGENTS.read_text(encoding="utf-8")
         self.assertIn("`ego-browser`", global_rules)
-        self.assertIn("`handOffTaskSpace`", global_rules)
-        self.assertIn("`completeTaskSpace`", global_rules)
+        self.assertIn("以当前 `ego-browser` Skill 及其 API 文档为准", global_rules)
+        self.assertNotIn("`handOffTaskSpace`", global_rules)
+        self.assertNotIn("`completeTaskSpace`", global_rules)
         self.assertFalse(
             (REPO_ROOT / ".agents" / "skills" / retired_browser_skill).exists()
         )
 
-    def test_explicit_push_request_counts_as_browser_acceptance(self) -> None:
+    def test_explicit_push_request_is_separate_from_browser_acceptance(self) -> None:
         # Entry points may link to the canonical rule instead of copying it.
         for path in (GLOBAL_AGENTS, HARNESS_SKILL):
             content = path.read_text(encoding="utf-8")
             self.assertIn("harness-engineering.md#browser-acceptance", content)
-        for path in (HARNESS_WORKFLOW, WORKTREE_WORKFLOW):
-            content = path.read_text(encoding="utf-8")
-            self.assertIn("explicit current-task push request", content)
-            self.assertIn("Do not ask separately", content)
+        evidence_policy = HARNESS_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("are not acceptance evidence", evidence_policy)
+        self.assertIn("explicit user statement that acceptance passed", evidence_policy)
+        integration_policy = WORKTREE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("explicit current-task push request", integration_policy)
+        self.assertIn("Do not ask separately", integration_policy)
+        self.assertIn("harness-engineering.md#browser-acceptance", integration_policy)
+        self.assertNotIn("counts as confirmation that browser acceptance passed", integration_policy)
 
         for path in (
             Path(__file__).parents[1] / "assets" / "project-harness" / "exec-plan.md",
@@ -301,7 +306,8 @@ class PolicyDocumentationTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 content = path.read_text(encoding="utf-8")
-                self.assertIn("explicit push request", content)
+                self.assertIn("Acceptance evidence:", content)
+                self.assertIn("Integration authorization:", content)
 
     def test_high_confidence_auto_integration_policy(self) -> None:
         # Verify the complete authorization contract at its single owner.
@@ -320,12 +326,13 @@ class PolicyDocumentationTests(unittest.TestCase):
             with self.subTest(path=path):
                 content = path.read_text(encoding="utf-8")
                 self.assertIn(
-                    "not-applicable | pending | passed | waived-by-high-confidence",
+                    "not-applicable | pending | passed | failed",
                     content,
                 )
+                self.assertIn("Integration basis: none | local-only | explicit-request | high-confidence-policy", content)
                 self.assertIn("High-confidence evidence:", content)
 
-        expected_report = "浏览器验收：未执行；满足高置信度自动集成条件，按策略豁免"
+        expected_report = "集成依据：满足高置信度自动集成条件"
         for path in (HARNESS_WORKFLOW,):
             with self.subTest(path=path):
                 self.assertIn(expected_report, path.read_text(encoding="utf-8"))
@@ -355,23 +362,6 @@ class PolicyDocumentationTests(unittest.TestCase):
         for marker in required_scenarios:
             with self.subTest(scenario=marker):
                 self.assertIn(marker, workflow)
-
-    def test_local_auto_merge_is_default_and_remote_authority_is_separate(self) -> None:
-        workflow = WORKTREE_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("## Local Auto-Merge", workflow)
-        self.assertIn("no separate \"merge it\" prompt is needed", workflow)
-        self.assertIn("It grants no remote push", workflow)
-        self.assertIn("uses `--ff-only`", workflow)
-        self.assertIn("merged locally; not pushed", workflow)
-
-        entrypoint_markers = {
-            GLOBAL_AGENTS: "local-auto-merge",
-            HARNESS_SKILL: "local auto-merge",
-            HARNESS_WORKFLOW: "local-auto-merge",
-        }
-        for path, marker in entrypoint_markers.items():
-            with self.subTest(path=path):
-                self.assertIn(marker, path.read_text(encoding="utf-8").lower())
 
     def test_global_rules_are_runtime_agnostic(self) -> None:
         content = GLOBAL_AGENTS.read_text(encoding="utf-8")

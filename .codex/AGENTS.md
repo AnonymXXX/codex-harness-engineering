@@ -40,21 +40,21 @@ Keep user-managed skills under `~/.agents/skills`; reserve `~/.codex/skills` for
 
 在 JumpServer Web 终端中执行命令时，使用页面底部 `Batch commands` 的命令输入框与 `Send` 按钮；不向 xterm Canvas 的隐藏 textarea 注入文本。命令执行后通过终端视口和 CDP 截图核对输出。
 
-不回退、安装或重新启用其他浏览器自动化 Skill。ego lite 不可用或缺少任务所需能力时，按 `ego-browser` 的安装/故障流程处理；仍无法覆盖时明确报告限制并停止对应步骤。任务真正完成后调用 `completeTaskSpace` 并传入 `{ keep: false }`；仅在用户明确要求保留页面或需要在原页面手动操作时使用 `{ keep: true }`，并保留用户原有页面。
+不回退、安装或重新启用其他浏览器自动化 Skill。ego lite 不可用或缺少任务所需能力时，按 `ego-browser` 的安装/故障流程处理；仍无法覆盖时明确报告限制并停止对应步骤。Task Space 的交接、接管、结束接口和参数以当前 `ego-browser` Skill 及其 API 文档为准，不在全局规则中复制接口签名。任务真正完成后结束该 Space，默认不保留 Agent 管理的页面；仅在用户明确要求或需继续查看、手动操作结果时保留必要页面，始终保护用户原有页面。
 
 ## Browser Acceptance
 
 Post-implementation browser acceptance requires an explicit user request or a higher-priority instruction. This does not restrict web research or requested browser operations. Run proportionate non-browser checks and static final-diff review; separate browser-driven checks from aggregate commands and report omitted coverage.
 
-For UI changes, follow [Browser Acceptance](docs/workflows/harness-engineering.md#browser-acceptance) for `自动检查`, `浏览器验收`, `验收步骤`, `通过标准`, `失败判据`, and `集成状态`. An explicit current-task push request records acceptance as `passed`; commit-only leaves it `pending`. A waiver requires every [High-confidence auto-integration](docs/workflows/git-worktree.md#high-confidence-auto-integration) gate. These states never grant additional external-action permissions.
+For UI changes, follow [Browser Acceptance](docs/workflows/harness-engineering.md#browser-acceptance) for acceptance evidence and reporting. Keep observed acceptance separate from integration authorization; a push request is not evidence that testing passed. Automatic remote integration requires every [High-confidence auto-integration](docs/workflows/git-worktree.md#high-confidence-auto-integration) gate. Neither acceptance status nor integration eligibility grants additional external-action permissions.
 
 ## Human Verification（验证码/人机验证）
 
-在 `ego-browser` 浏览器或网页操作中检测到人机验证（CAPTCHA、滑块验证、点选验证码、reCAPTCHA、登录风控等）时，**立即停止自动化操作**，调用 `handOffTaskSpace` 把当前 Space 交给用户并等待。禁止调用视觉能力尝试自动通过，也不得继续点击、拖拽、刷新或绕过验证。
+在 `ego-browser` 浏览器或网页操作中检测到人机验证（CAPTCHA、滑块验证、点选验证码、reCAPTCHA、登录风控等）时，**立即停止该页面的自动化操作**，按当前 `ego-browser` Skill 的交接流程把当前 Space 交给用户并等待。禁止调用视觉能力尝试自动通过，也不得继续点击、拖拽、刷新或绕过验证。
 
 使用当前运行时可用的用户输入机制说明验证码位置（页面/网址/当前步骤）并等待；优先使用运行时允许且能表达所需输入的结构化工具，否则直接询问。选项至少包含 `已验证`（继续）、`未处理`（跳过或结束当前步骤）和 `取消任务`（终止任务）。
 
-等待用户选择后再继续；用户处理期间不得重复操作页面或重新触发验证码。仅在用户明确选择继续后调用 `takeOverTaskSpace` 取回控制。
+等待用户选择后再继续；用户处理期间不得重复操作页面或重新触发验证码。仅在用户明确选择继续后，按当前 `ego-browser` Skill 的接管流程取回控制。
 
 ## DESIGN.md And UI Consistency
 

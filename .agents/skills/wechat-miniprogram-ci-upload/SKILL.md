@@ -1,14 +1,16 @@
 ---
 name: wechat-miniprogram-ci-upload
 description: >-
-  Upload WeChat Mini Program builds with WeChat DevTools CLI preferred, including
+  Open, name, test, preview, and upload WeChat Mini Program builds with WeChat
+  DevTools CLI preferred, including
   prompts such as 上传体验版, 上传开发版, 用 miniprogram-ci 上传, 生成小程序预览二维码,
-  代码上传密钥/private key/ci机器人, dev/build产物选择, 上传版本管理, or uploading
-  uni-app mp-weixin output after build. Prefer WeChat DevTools CLI when installed
-  and logged in; fall back to miniprogram-ci only when DevTools CLI is unavailable
-  or the user explicitly requests key-based CI upload. Build upload success should
-  synchronize mini-program version files, commit chore release version, tag the
-  version, and push the branch plus tag; dev upload and preview do not change
+  打开微信开发者工具, 项目名称/projectname, 代码上传密钥/private key/ci机器人,
+  dev/build产物选择, 上传版本管理, or uploading uni-app mp-weixin output after
+  build. Prefer WeChat DevTools CLI when installed and logged in; fall back to
+  miniprogram-ci only when DevTools CLI is unavailable or the user explicitly
+  requests key-based CI upload. Synchronize build-upload versions; keep Git
+  publication separately authorized. Complete experience-version selection through
+  the public platform only when requested; dev upload and preview do not change
   versions or tags.
 ---
 
@@ -28,14 +30,48 @@ description: >-
    - Requires a usable private key from the user-provided path or project `.tmp`.
 3. Do not silently switch tools. When falling back, tell the user the exact reason.
 
+## DevTools GUI And Project Naming
+
+- Use a meaningful mode-specific display name instead of generic names such as `src`
+  or `mp-weixin`: `<业务名>-build` for build output and `<业务名>-dev` for dev output.
+  Reuse an established project name when the repository already defines one.
+- For uni-app, set the source `project.config.json#projectname` to the plain display
+  name and `project.private.config.json#projectname` to the same value encoded with
+  JavaScript `encodeURIComponent`. Rebuild and verify both generated output configs;
+  do not patch generated configs as the durable fix.
+- When the user asks to visibly open or test the project, inspect the DevTools main
+  process. If it is running only as `Electron --cli`, close that instance normally,
+  launch `/Applications/wechatwebdevtools.app` as a visible GUI, then run `cli open
+  --project <output-dir>` against the validated output path.
+- Verify the visible window title and the project-list card use the expected display
+  name. A successful `cli open` is insufficient. If the card remains stale, use the
+  DevTools Manage/remove-and-import flow; never edit DevTools internal cache.
+
+### Cold-start AppID Binding Recheck
+
+- A correct window title or project name does **not** prove that DevTools has bound
+  the project to the expected AppID. DevTools can reuse a cached tourist/test
+  registration for the same path after a cold start.
+- If the IDE console or CLI reports `41002 appid missing`, `appid missing`,
+  `测试号不支持上传`, or shows a test/tourist project, stop all upload/preview
+  and Git finalization actions. Do not fall back to `miniprogram-ci` just because
+  the project name is correct.
+- Close the unbound project, then use DevTools **Manage/导入** to remove the stale
+  registration and import the freshly generated `mp-weixin` output. Enter the
+  expected AppID during import and confirm the project is a non-tourist project
+  (`isTourist = false` when that field is available).
+- Reopen the visible GUI and recheck all of: window title, project-list card,
+  AppID, and a clean compile/run console. Only after the cold-start check is clean
+  may `cli upload` or `cli preview` be retried. `cli open` success alone remains
+  insufficient evidence of binding.
+
 ## Boundaries
 
 - Both tools upload a WeChat Mini Program **development version** (开发版).
-- Official tooling does not automatically select that version as the experience version (体验版).
-- If the user says `上传体验版`, interpret the executable step as uploading a development version only. Do not open, navigate, log in to, or operate the WeChat public platform to select an experience version; that manual selection remains the user's responsibility and is outside this skill.
-- Do not ask the user to log in to the WeChat public platform or wait for login after an upload.
+- CLI upload success alone does not establish experience-version selection (体验版).
+- If the user says `上传体验版`, complete development-version upload and then [Experience-Version Selection](#experience-version-selection). A development-version upload or preview-only request ends after that requested result; do not add public-platform operations or login steps.
 - The upload private key is only needed for `miniprogram-ci`. Do not guess, generate, search broad filesystem locations for, commit, or print private key contents.
-- Build upload success creates a Git version commit, lightweight tag, and push. Dev upload and preview QR generation do not edit versions, commit, tag, or push.
+- Build upload synchronizes version files and follows the global rules for local commits. Upload authorization does not grant Git tag, branch push, production, or MR/PR permissions. Resolve any separately authorized Git publication before uploading; missing optional Git publication authority does not block upload. Dev upload and preview QR generation do not edit versions, commit, tag, or push as part of this skill.
 
 ## Required Workflow
 
@@ -48,12 +84,13 @@ description: >-
    - Use `build` mode when the user explicitly says `build`, `生产构建`, `dist/build`, or asks to upload/preview the build output.
    - Resolve the upload-description suffix from the output mode: `build` -> `（RELEASE）`; `dev` -> `（UAT）`. Do not infer it from the Git branch.
    - Report the resolved mode in the final result.
-3. For build upload requests, run Git and version preflight before building.
-   - Verify the repo is a Git repository, the current branch can be resolved, and `origin` exists.
-   - Inspect `git status --short`. If files other than upload-managed version files are modified, stop and tell the user to commit business changes first with `$git-auto-commit`.
+3. For build upload requests, resolve source ownership, version, and any Git publication scope before building.
+   - In a Git repository, inspect the current branch, `git status --short`, and staged/unstaged diffs. Git and an `origin` remote are not prerequisites for uploading a valid project; require the relevant Git state only for authorized Git operations.
+   - Attribute business-file changes. Validate and commit current-task changes under the existing global authorization with `$git-auto-commit`; do not ask the user to repeat an already authorized commit request. Preserve unrelated changes and isolate the upload source when they would otherwise be included. Ask only when source ownership, required dependencies, or the intended upload content cannot be determined safely.
    - Upload-managed version files are `package.json`, `manifest.json`, and `src/manifest.json`.
-   - Resolve the upload version using the Version Management section, then synchronize version files before building.
-   - If local or remote tag `v<version>` already exists, stop and report the conflict before building or uploading.
+   - Resolve the upload version using the Version Management section, then synchronize only the intended version fields before building. Preserve unrelated changes in those files too.
+   - Identify separately authorized branch/tag publication, its exact target, and side effects under the global Git workflow. If no publication is authorized, complete the upload without adding a Git publication approval step. If Git publication is required by the user but its scope is missing, prepare the concrete Git result and ask only about that operation while continuing the independently authorized upload.
+   - Check tag availability only when tag creation is separately authorized. A tag conflict blocks tag publication, not an independently authorized upload; never overwrite a tag or silently change the requested version.
    - Skip this step for dev upload and all preview requests.
 4. Always generate the latest mini-program output for the resolved mode before upload or preview.
    - In `build` mode, prefer `pnpm build:mp-weixin`; default output is `dist/build/mp-weixin`.
@@ -104,14 +141,18 @@ description: >-
 10. Clean up temporary artifacts after the command finishes.
     - For DevTools path: leave `.tmp/upload-mp-weixin/` in place unless the user asks to clean it.
     - For `miniprogram-ci`: remove empty `.tmp/miniprogram-ci-work/[0-9a-f]{32}` directories automatically; leave non-empty ones and report the path.
-11. After build upload succeeds, commit and tag the synchronized version files.
-    - Stage only upload-managed version files that changed.
-    - Commit with exactly `chore: release v<version>`; this Git commit message is not an upload description and does not receive the mode suffix.
-    - Create a lightweight tag named `v<version>`.
-    - Push the current branch and tag with `git push origin <current-branch> v<version>`.
-    - If commit, tag, or push fails, report the exact failure and do not hide that the upload itself already succeeded.
-    - Skip this step for dev upload and all preview requests.
-12. Report whether the command succeeded, the output mode (`dev` or `build`), output directory, tool used (`WeChat DevTools CLI` or `miniprogram-ci`), the AppID, version, robot when applicable, description, tag/push status for build uploads, and whether the result is a development version or preview QR. For dev upload, explicitly report that version sync and tag/push were skipped because `dev` mode is for development validation. State that the uploaded result is a development version and stop; do not offer or attempt experience-version selection.
+11. After build upload succeeds, follow [Build Upload Git Finalization](#build-upload-git-finalization). Keep upload success separate from any blocked or failed Git operation. Skip this step for dev upload and all preview requests.
+12. If the user requested an experience version, complete [Experience-Version Selection](#experience-version-selection) after a successful upload, independently of optional Git publication. Otherwise finish at the requested development-version upload or preview.
+13. Report command outcome, output mode (`dev` or `build`), output directory, tool, AppID, version, robot when applicable, description, and Git status for build uploads. Distinguish development-version upload, experience-version selection, and preview QR. For dev upload, report that this skill skipped version sync and tag/push. If experience selection is blocked, report `开发版上传成功；体验版选择尚未完成` with the concrete blocker; do not describe the whole experience-version request as complete.
+
+## Experience-Version Selection
+
+Use this section only when the user explicitly requests an experience version for the uploaded project. That request covers selecting the uploaded development version as the experience version, not submitting it for review, publishing production, or changing members or tester permissions.
+
+1. After successful upload with the expected AppID, use the current `$ego-browser` skill and an independent Task Space to inspect the WeChat public platform. Follow current visible navigation rather than assuming fixed selectors.
+2. Verify the account/project AppID and identify the uploaded development version using its version, description, upload time, and other available evidence. Do not select a different or ambiguous record. Reuse a signed-in session; if login, QR verification, CAPTCHA, or a browser-owned approval requires the user, hand off under the global human-verification rules and resume only after the user confirms.
+3. Select that record as the experience version within the authorized scope. Read the resulting platform state to verify the selected version. Keep any experience QR or result page available only when needed by the user, following the current browser completion policy.
+4. If access, account scope, or available platform controls prevent selection, report the completed upload and remaining selection step. Continue independent authorized work; do not bypass access controls or substitute a production-release action.
 
 ## DevTools AppID Binding Guardrail
 
@@ -121,8 +162,14 @@ Apply this guardrail to every DevTools CLI upload or preview:
 2. For upload, require the CLI output to report the expected AppID, such as `使用 AppID: <expected-appid>`, before accepting `upload` success.
 3. Stop immediately when the IDE or CLI shows `41002 appid missing`, `appid missing`, `测试号不支持上传`, a test/tourist project, or any AppID mismatch. Do not upload, commit version files, create a tag, or push.
 4. Do not edit WeChat DevTools internal cache or local-storage files to manufacture a binding. Reopening the same path after changing `project.config.json` may reuse an earlier unbound/test-project cache entry and is not a valid fix.
-5. If a new path was cached as unbound, close it. Prefer rebuilding the exact validated source and version at a project output path already imported for the expected AppID; otherwise stop and require the project to be imported and bound manually in DevTools.
-6. Re-run the CLI command after correcting the path or binding, and accept success only after the expected AppID is reported.
+5. If a new path was cached as unbound, close it. Prefer the DevTools
+   Manage/导入 flow to remove the stale registration and import the exact
+   validated output with the expected AppID; confirm `isTourist = false` when
+   available. Rebuilding or reopening the same path without re-importing does
+   not repair the binding.
+6. Re-run the visible GUI cold-start check and then the CLI command after
+   correcting the binding. Accept success only after the expected AppID is
+   reported and no `appid missing` error remains.
 
 ## Upload Description Policy
 
@@ -192,43 +239,46 @@ Synchronize version files before building:
 - Use structured JSON parsing/editing when possible; preserve unrelated fields.
 - Do not update version files for dev upload or preview-only requests.
 
-Before build upload, check tag availability:
+Before a build upload with separately authorized tag creation, check tag availability for that Git publication:
 
 ```bash
 git rev-parse -q --verify refs/tags/v<version>
 git ls-remote --tags origin v<version>
 ```
 
-If either local or remote tag already exists, stop and report the conflict. Do not overwrite, delete, or auto-bump after a tag conflict.
+If either local or remote tag already exists, stop tag creation and report the conflict. Do not overwrite, delete, or auto-bump after a tag conflict. This Git conflict does not block an independently authorized upload of the resolved version.
 
 ## Build Upload Git Finalization
 
-Run this section only after a build upload command succeeds. Do not run it for dev upload, preview QR generation, or any failed upload.
+Run this section only after a build upload command succeeds in a Git repository. Do not run it for dev upload, preview QR generation, or any failed upload. Git publication is optional unless the user's request separately requires it.
 
 Rules:
 
-- Stage only changed upload-managed version files: `package.json`, `manifest.json`, and `src/manifest.json`.
-- If no version files changed, skip the version commit but still create and push the tag when it does not already exist.
+- Stage only attributable version changes in `package.json`, `manifest.json`, and `src/manifest.json`; never stage unrelated fields or business changes wholesale. Follow the global local-commit rules and task-history safeguards. Business commits use `$git-auto-commit` within their existing authorization and need no repeated request.
+- If no version fields changed, skip the version commit. A no-op version commit does not create tag or push authority.
 - Commit message must be exactly:
 
 ```text
 chore: release v<version>
 ```
 
-- Create a lightweight tag:
+- Only with explicit authorization for the exact tag, create a lightweight tag on the verified commit representing the uploaded source and version. Recheck for source drift and local/remote tag conflicts first:
 
 ```bash
-git tag v<version>
+git tag v<version> <verified-upload-commit>
 ```
 
-- Push the current branch and tag:
+- Execute only separately authorized Git publication. Use the global Git workflow's validation and integration preflight for the exact authorized branch target; never choose a publication target solely because it is the current branch. Tag publication requires explicit authorization and a verified tag target. Commands for the independently authorized operations are:
 
 ```bash
-git push origin <current-branch> v<version>
+# Only when branch publication is authorized and preflight permits it:
+git push origin <validated-task-ref>:refs/heads/<authorized-target>
+# Only when this exact tag publication is explicitly authorized:
+git push origin refs/tags/v<version>:refs/tags/v<version>
 ```
 
-- If tag creation or push fails after upload has succeeded, report the upload success separately from the Git finalization failure.
-- Do not commit business files or generated mini-program output unless the user explicitly requests a separate commit flow; route business commits to `$git-auto-commit`.
+- Without Git publication authority, finish the upload and eligible local commit, then report `Git 发布：未执行（未授权）`; do not ask for an optional publication. If an authorized Git operation fails, preserve the successful upload and report the exact Git blocker separately.
+- Do not commit generated mini-program output unless it is required by the authorized task or project rules.
 
 ## Command Templates
 
@@ -384,10 +434,10 @@ dev:   release v<版本号> 验证小程序当前构建效果（UAT）
 - Do not upload, commit, tag, or push after `41002 appid missing`, `测试号不支持上传`, a tourist/test project, or an AppID mismatch.
 - Do not overwrite a generated output `project.config.json` with a config from another directory level.
 - Do not edit WeChat DevTools internal cache or local-storage files to force an AppID binding.
-- Never access the WeChat public platform, request a platform login, or attempt to select the uploaded development version as the experience version.
+- Public-platform access is limited to explicitly requested experience-version selection. Preserve login/CAPTCHA handoff and separate production, review-submission, and permission-change authorization.
 - Do not run `miniprogram-ci` from the repository root when avoidable, because it may create 32-character hash temporary directories in the current working directory.
 - Do not fall back to `miniprogram-ci` silently; always state the DevTools failure or user request reason first.
-- Do not tag before build upload succeeds.
+- Do not tag before build upload succeeds or without explicit tag authorization.
 - Do not tag or push for dev upload or preview-only requests.
 - Do not modify version files for dev upload or preview-only requests.
 - Do not overwrite existing local or remote tags.

@@ -19,6 +19,7 @@ Use this skill for git release promotion tasks that follow a repeatable backport
 - Missing-on-target rule: patch-equivalent, not raw commit hash
 - Preflight checks: `git fetch --all --prune --tags` and clean `git status`
 - Tag style: lightweight
+- Release batching invariant: one user release request plus one repository produces at most one new tag. Collect every confirmed commit for that repository first, cherry-pick them in source order, then tag and push once.
 
 ## Script
 
@@ -36,23 +37,36 @@ Typical flow:
 1. Run `inspect` first.
 2. Review blockers, warnings, pending commits, target branch, and proposed tag.
 3. Run `execute` only when the user has authorized this release scope (including its branch/tag publication) and the script reports no blockers. Inspect-only requests remain read-only; reuse an already confirmed commit list from the current task.
-4. If the only blocker is the pending-count threshold and the user confirms `全部执行`, rerun with `--confirm-all`.
+4. Apply [Batch Confirmation](#batch-confirmation) when the pending-count threshold is exceeded. Reuse explicit current-task authorization for the same exact commit list and target; pass `--confirm-all` with repeated `--commit <sha>` selectors instead of asking again.
 5. Use `--sync-target` with execute mode when the local target branch may be behind `origin/<target>`; it only fast-forwards when there are no local-only target commits.
 6. After execute mode finishes, the script restores the branch that was checked out before execution when possible.
+7. When one repository contains multiple requested features or disconnected file clusters, inspect them separately if needed, then execute once with repeated `--commit` selectors. Never run `execute` repeatedly for the same repository in one user release request.
 
 Examples:
 
 ```bash
-python3 ~/.agents/skills/release-ops/scripts/release_ops.py inspect \
+uv run ~/.agents/skills/release-ops/scripts/release_ops.py inspect \
   --repo "$PWD" \
   --since 2026-04-14 \
   --until 2026-04-14T23:59:59+08:00
 ```
 
 ```bash
-python3 ~/.agents/skills/release-ops/scripts/release_ops.py execute \
+uv run ~/.agents/skills/release-ops/scripts/release_ops.py execute \
   --repo "$PWD" \
   --feature "结算统计页面" \
+  --bump auto \
+  --sync-target
+```
+
+Batch exact commits from one repository under one tag:
+
+```bash
+uv run ~/.agents/skills/release-ops/scripts/release_ops.py execute \
+  --repo "$PWD" \
+  --commit 17247b5b9540 \
+  --commit 260d04e3b83b \
+  --commit 43813af5e7e0 \
   --bump auto \
   --sync-target
 ```
@@ -97,6 +111,7 @@ Support these selectors:
 - author + absolute time range
 - author + feature keyword
 - author + feature keyword + time range
+- author + one or more exact commits
 
 If the prompt omits the author, use the current repo `git config user.name`; if unavailable, use the configured default author. Do not include commits by other authors unless the user explicitly names that author or explicitly asks to process that other author's commits.
 
@@ -111,11 +126,12 @@ Feature matching details live in `references/matching-rules.md`.
 
 ## Execution Rules
 
+- Treat the current user release request as the batch boundary. For each repository, finish selection before execution and create exactly one final tag, even when commits belong to multiple features or file clusters.
+- Use repeated `--commit` selectors when a single feature selector cannot safely express the whole confirmed set. Explicit commits must be reachable from the source branch, match the selected author, and are reordered into source-branch order automatically.
+- Do not split one repository into sequential tagged releases merely to satisfy feature-cluster matching. If the exact set is still uncertain, stop and ask instead of producing multiple tags.
 - If pending commits after filtering are `0`, report no action needed.
 - If pending commits are `1-5` in execute mode, execute directly.
-- If pending commits are `>5`, stop and offer only:
-  - `全部执行`
-  - `取消`
+- If pending commits are `>5`, apply [Batch Confirmation](#batch-confirmation); the count alone does not require repeating an existing exact-scope authorization.
 - `inspect` always fetches first and analyzes against the latest remote target ref such as `origin/release`.
 - In execute mode, use `--sync-target` to fast-forward the local target branch to the remote target before cherry-picking when it is safely behind.
 - `--sync-target` must not resolve local-only commits or diverged target branches; stop and report those cases for manual handling.
@@ -123,6 +139,15 @@ Feature matching details live in `references/matching-rules.md`.
 - Attempt conflict resolution before stopping.
 - The script currently aborts failed cherry-picks and reports the conflict files; if needed, resolve manually after the script stops.
 - After execution, switch back to the branch that was active before the run when restoration is possible.
+
+## Batch Confirmation
+
+The pending-count threshold protects unconfirmed release scope; it does not invalidate authorization already given in the current task. Before executing more than five pending commits:
+
+- Inspect the exact pending commit list, repository, source, target, and proposed tag/production effects. Reuse an explicit current-task request approving that same complete list and publication scope, including an earlier `全部执行` tied to the displayed list. Do not ask again solely because the count exceeds five.
+- When that authorization exists and all other checks pass, use repeated `--commit <full-sha>` selectors for the confirmed list and `--confirm-all`. The flag records the existing approval; it does not grant permission or bypass other blockers.
+- If the list or publication scope was not confirmed, prepare the concrete list and ask once. Allow confirming all, narrowing the scope, or cancelling; do not force an all-or-nothing choice. A generic `发版` or an inspect-only request is not batch approval.
+- If inspection finds additional candidates, a different target, or newly uncovered side effects outside the approved scope, pause only that release operation for the changed scope. Never silently include new commits or use `--confirm-all` to bypass unresolved scope.
 
 ## Tag Rules
 
@@ -141,11 +166,11 @@ Stop and ask before continuing when any of these happen:
 - default source branch `uat` is absent
 - `release` and `master` are both absent
 - feature keyword is too vague, such as only `优化`, `修改`, or `调整`
-- more than one unrelated feature cluster matches
+- fuzzy feature matching finds multiple unrelated clusters and the current task has not confirmed an exact commit set; an already confirmed SHA list follows [Batch Confirmation](#batch-confirmation)
 - related commits from other authors are detected
 - bump inference is low confidence
 - conflict resolution is not reliable
-- pending commits exceed the confirmation threshold
+- pending commits exceed the confirmation threshold and the exact batch/publication scope lacks current-task confirmation under [Batch Confirmation](#batch-confirmation)
 
 ## Output Shape
 

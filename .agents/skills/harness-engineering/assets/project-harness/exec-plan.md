@@ -17,8 +17,10 @@ State the outcome and link the source product/spec decision.
 ## Validation And Rollout
 
 - Validation: `<command>` - pending
-- Browser acceptance: not-applicable | pending | passed | waived-by-high-confidence
-- Acceptance confirmation: <task/thread reference and user confirmation or explicit push request, or n/a>
+- Browser acceptance: not-applicable | pending | passed | failed
+- Acceptance evidence: <Agent check result or explicit user acceptance confirmation with task/thread reference, or n/a>
+- Integration basis: none | local-only | explicit-request | high-confidence-policy
+- Integration authorization: <authorized operation, target, and request/policy reference, or n/a>
 - High-confidence evidence: <validation summary; static final-diff review; target branch, or n/a>
 - Deployment/rollout: not started | in progress | complete | not applicable
 

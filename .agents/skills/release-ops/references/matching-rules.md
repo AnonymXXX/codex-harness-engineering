@@ -41,6 +41,13 @@ Treat “没有合并到 release/master” as:
 
 Do not require merge commits because the normal promotion path is cherry-pick.
 
+## Release Batch Boundary
+
+- One user release request and one repository form one release batch.
+- A batch may contain multiple features, directories, or disconnected commit clusters, but it creates at most one tag after all selected commits are cherry-picked.
+- Separate `inspect` calls are allowed to identify the exact set. Use one `execute` call with repeated `--commit` selectors for the final repository batch.
+- Never solve ambiguous feature clustering by executing and tagging the same repository multiple times. Stop until the exact commit list is known.
+
 ## Feature Matching Order
 
 1. Commit subject and body keyword match

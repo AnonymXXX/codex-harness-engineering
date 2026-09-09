@@ -95,6 +95,7 @@ class Analysis:
     since: str | None
     until: str | None
     feature: str | None
+    commit_selectors: list[str]
     pending_count: int
     pending_commits: list[Commit]
     related_other_author_commits: list[Commit]
@@ -136,6 +137,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--feature",
         help="Feature keyword used for commit message/diff/path matching.",
+    )
+    parser.add_argument(
+        "--commit",
+        dest="commit_shas",
+        action="append",
+        default=[],
+        help="Exact source commit to include. Repeat to batch multiple commits under one tag.",
     )
     parser.add_argument(
         "--bump",
@@ -336,6 +344,68 @@ def list_commits(repo: Path, ref: str, since: datetime | None, until: datetime |
         )
     commits.sort(key=lambda item: item.authored_datetime())
     return commits
+
+
+def read_commit(repo: Path, sha: str) -> Commit:
+    format_str = "%H%x1f%an%x1f%aI%x1f%s%x1f%b"
+    raw = run_cmd(
+        repo,
+        ["git", "show", "-s", f"--pretty=format:{format_str}", "--date=iso-strict", sha],
+    ).strip("\r\n")
+    parts = raw.split("\x1f")
+    if len(parts) < 5:
+        raise GitCommandError(f"could not read commit metadata: {sha}")
+    resolved_sha, author, authored_at, subject, body = parts[:5]
+    files = [
+        line.strip()
+        for line in run_cmd(
+            repo,
+            ["git", "show", "--format=", "--name-only", "--no-renames", resolved_sha],
+        ).splitlines()
+        if line.strip()
+    ]
+    diff = run_cmd(
+        repo,
+        ["git", "show", "--format=", "--unified=0", "--no-color", resolved_sha],
+    )
+    return Commit(
+        sha=resolved_sha,
+        author=author,
+        authored_at=authored_at,
+        subject=subject.strip(),
+        body=body.strip(),
+        files=files,
+        diff=diff,
+    )
+
+
+def resolve_explicit_commits(repo: Path, source_ref: str, selectors: list[str]) -> list[Commit]:
+    resolved: dict[str, Commit] = {}
+    for selector in selectors:
+        sha = run_cmd(
+            repo,
+            ["git", "rev-parse", "--verify", f"{selector}^{{commit}}"],
+            check=False,
+        ).strip()
+        if not sha:
+            raise GitCommandError(f"commit not found: {selector}")
+        ancestor = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, source_ref],
+            cwd=repo,
+            text=True,
+            capture_output=True,
+        )
+        if ancestor.returncode != 0:
+            raise GitCommandError(f"commit is not reachable from {source_ref}: {selector}")
+        resolved.setdefault(sha, read_commit(repo, sha))
+
+    source_order = {
+        sha: index
+        for index, sha in enumerate(
+            run_cmd(repo, ["git", "rev-list", "--reverse", source_ref]).splitlines()
+        )
+    }
+    return sorted(resolved.values(), key=lambda commit: source_order[commit.sha])
 
 
 def plus_commits_from_git_cherry(repo: Path, target_ref: str, source_ref: str) -> set[str]:
@@ -542,8 +612,11 @@ def build_analysis(args: argparse.Namespace, skill_dir: Path) -> Analysis:
     target_branch, target_ref = resolve_target_branch(repo, args.target_branch, defaults)
     author = resolve_author(repo, args.author, defaults)
 
-    if not args.feature and not args.since and not args.until:
-        blockers.append("missing selector: provide a time range or feature keyword")
+    if not args.feature and not args.since and not args.until and not args.commit_shas:
+        blockers.append("missing selector: provide a time range, feature keyword, or --commit")
+
+    if args.commit_shas and (args.feature or args.since or args.until):
+        blockers.append("--commit cannot be combined with --feature, --since, or --until")
 
     if is_vague_feature(args.feature):
         blockers.append("feature keyword is too vague and needs confirmation")
@@ -575,6 +648,7 @@ def build_analysis(args: argparse.Namespace, skill_dir: Path) -> Analysis:
             since=iso_or_none(requested_since),
             until=iso_or_none(requested_until),
             feature=args.feature,
+            commit_selectors=args.commit_shas,
             pending_count=0,
             pending_commits=[],
             related_other_author_commits=[],
@@ -597,45 +671,54 @@ def build_analysis(args: argparse.Namespace, skill_dir: Path) -> Analysis:
     used_since: datetime | None = None
     used_until: datetime | None = None
 
-    for window_since, window_until in windows:
-        commits_in_window = list_commits(repo, source_ref, window_since, window_until)
-        author_commits = [commit for commit in commits_in_window if commit.author == author]
-        if not args.feature:
-            matched_commits = author_commits
-        else:
-            (
-                matched_commits,
-                selected_cluster_count,
-                ambiguous_clusters,
-                feature_warnings,
-            ) = choose_feature_commits(
-                author_commits,
-                all_pending_shas,
-                args.feature,
+    if args.commit_shas:
+        matched_commits = resolve_explicit_commits(repo, source_ref, args.commit_shas)
+        mismatched_authors = sorted({commit.author for commit in matched_commits if commit.author != author})
+        if mismatched_authors:
+            blockers.append(
+                "explicit commits include authors outside the selected author: "
+                + ", ".join(mismatched_authors)
             )
-            warnings.extend(feature_warnings)
-            if args.mode == "execute" and ambiguous_clusters:
-                blockers.append("multiple unrelated feature clusters matched")
-            related_other_author_commits = detect_related_other_author_commits(
-                commits_in_window,
-                args.feature,
-                all_pending_shas,
-                author,
-                matched_commits,
-            )
-            if args.mode == "execute" and related_other_author_commits:
-                blockers.append("related commits from other authors were detected")
+    else:
+        for window_since, window_until in windows:
+            commits_in_window = list_commits(repo, source_ref, window_since, window_until)
+            author_commits = [commit for commit in commits_in_window if commit.author == author]
+            if not args.feature:
+                matched_commits = author_commits
+            else:
+                (
+                    matched_commits,
+                    selected_cluster_count,
+                    ambiguous_clusters,
+                    feature_warnings,
+                ) = choose_feature_commits(
+                    author_commits,
+                    all_pending_shas,
+                    args.feature,
+                )
+                warnings.extend(feature_warnings)
+                if args.mode == "execute" and ambiguous_clusters:
+                    blockers.append("multiple unrelated feature clusters matched")
+                related_other_author_commits = detect_related_other_author_commits(
+                    commits_in_window,
+                    args.feature,
+                    all_pending_shas,
+                    author,
+                    matched_commits,
+                )
+                if args.mode == "execute" and related_other_author_commits:
+                    blockers.append("related commits from other authors were detected")
 
-        pending_commits = [
-            commit
-            for commit in matched_commits
-            if commit.sha in all_pending_shas
-        ]
-        if pending_commits:
-            used_since = window_since
-            used_until = window_until
-            matched_commits = pending_commits if not args.feature else matched_commits
-            break
+            pending_commits = [
+                commit
+                for commit in matched_commits
+                if commit.sha in all_pending_shas
+            ]
+            if pending_commits:
+                used_since = window_since
+                used_until = window_until
+                matched_commits = pending_commits if not args.feature else matched_commits
+                break
 
     if used_since is None and used_until is None and windows:
         used_since, used_until = windows[-1]
@@ -686,6 +769,7 @@ def build_analysis(args: argparse.Namespace, skill_dir: Path) -> Analysis:
         since=iso_or_none(used_since),
         until=iso_or_none(used_until),
         feature=args.feature,
+        commit_selectors=args.commit_shas,
         pending_count=len(pending_commits),
         pending_commits=pending_commits,
         related_other_author_commits=related_other_author_commits,
@@ -824,6 +908,8 @@ def print_text_report(analysis: Analysis, execution: dict[str, Any] | None = Non
         lines.append(f"time_window: {analysis.since or '-'} -> {analysis.until or '-'}")
     if analysis.feature:
         lines.append(f"feature: {analysis.feature}")
+    if analysis.commit_selectors:
+        lines.append("commit_selectors: " + ", ".join(analysis.commit_selectors))
     lines.append(f"pending_count: {analysis.pending_count}")
     if analysis.pending_commits:
         lines.append("pending_commits:")
