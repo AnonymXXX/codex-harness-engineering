@@ -4,11 +4,18 @@ Use this workflow for medium or large file-modifying tasks inside a Git reposito
 
 ## When To Use A Worktree
 
-Use a task-specific worktree when isolation provides concrete value: overlapping user changes, concurrent work, a long-running or interruptible task, broad shared behavior, or deployment, data, security, permission, production, or unclear effects. A cohesive Standard Lane change may use the safe current worktree; size, configuration files, or generated artifacts alone do not require another worktree. State the isolation reason briefly before editing.
+Prefer the repository's main working directory for new work in every risk lane. Keep its current branch and existing changes intact. Continuing in an existing suitable task checkout is also allowed; do not relocate active work merely to follow the default. Main working directory means the normal project checkout, not permission to switch to `main` or `master`, commit unrelated work, or push.
 
-Do not create a task worktree for Fast Lane work: a clear, cohesive local change in one repository with a safe current worktree and no shared contracts, shared configuration, dependencies, generated artifacts, migrations, deployment, data, permissions, or security-sensitive behavior. It is also acceptable to edit in the current worktree for other clearly small and low-risk changes when existing uncommitted changes are unrelated and will not be touched, or when the user explicitly asks for that.
+Create a separate worktree only when at least one concrete necessity is established:
 
-File count alone does not determine risk: a one-file security change may require isolation, while a cohesive three-file local feature may not. Do not create a worktree solely because the task modifies code; use one when risk, coupling, repository state, or likely interruption justifies isolation.
+- The user or applicable project rules explicitly require a separate checkout.
+- Concurrent tasks must modify overlapping files, or need incompatible checked-out branches, and cannot safely share the directory.
+- Required builds, generators, or experiments would overwrite existing work, and targeted edits, separate output directories, or other narrower isolation cannot protect it.
+- The task requires a different committed baseline or isolated commit range, and the current checkout/index cannot represent it without disturbing user changes or including unrelated work.
+
+First inspect the actual diff and try safe in-place editing, explicit file ownership, targeted staging, or a reviewed isolated index where appropriate. Unrelated dirty files, attributable edits in the same file, task size, duration, interruption risk, configuration changes, and deployment/security labels alone do not justify a worktree. If isolation cannot resolve an ownership or product decision, ask about that decision instead of treating another checkout as a solution.
+
+Before creating a worktree, briefly name the concrete conflict and why the narrower alternatives are insufficient. Using the main working directory is the default and needs no exception report. A worktree does not relax validation or external-operation authorization.
 
 Always inspect worktree state first and avoid touching unrelated uncommitted changes.
 
@@ -26,7 +33,7 @@ Apply the worktree-creation steps below only when isolation is needed under the 
 - Place the worktree in a sibling directory, such as `../<repo-name>.worktrees/<task-slug>`.
 - Do all implementation, edits, and validation inside that worktree.
 - Treat this section as a checklist: inspect status, determine the integration branch, create the task worktree, switch into it, implement there, validate there, commit there when appropriate, then merge back only under the rules below.
-- If the task meets the worktree criteria but you intentionally do not use a task worktree, record the exception before editing and again in the final response.
+- If a concrete isolation requirement remains unmet, resolve it before the affected edit; continue independent safe work. Do not create a worktree merely to satisfy a lane label or reporting convention.
 
 ## Worktree Bootstrap
 
@@ -67,7 +74,7 @@ Do not leave the integration or main worktree dirty just to record ledger status
 - If validation passes, automatically commit small low-risk implementation changes with a concise commit message unless the task is exploratory, temporary, explicitly marked no-commit, or the user asks to inspect the diff first.
 - For medium or large changes, briefly summarize the diff and validation result before committing, then continue without waiting unless the user asked to inspect the diff first or a stop condition applies.
 - Treat validated commit, eligible local auto-merge, separately authorized remote integration, and cleanup as the normal autonomous completion path. Do not end with "ready to merge" or ask the user to repeat a merge request when the applicable gates pass. A UI task qualifying for remote auto-integration records browser acceptance as `waived-by-high-confidence`; an explicit current-task push request records `passed`; a commit-only request remains `pending` and does not itself authorize integration.
-- Before committing a medium or large change that was made in the current worktree, explain why skipping a task worktree is still safe, what validation passed, and whether unrelated user changes could be mixed in. Continue without waiting unless a `Stop And Ask` condition applies.
+- Before committing, verify the staged diff contains only attributable task changes and report proportionate validation. Working in the main directory needs no special justification. Never stage a mixed file wholesale just to complete the commit step.
 - Keep local-target maintenance separate from remote integration. A divergent local `uat`, `main`, or other integration branch is not evidence that the remote target requires an MR and must not block an otherwise safe remote fast-forward.
 - Apply [Local Auto-Merge](#local-auto-merge) independently of remote push authorization. If local state prevents merging, preserve it without blocking an independently safe remote integration.
 - Run the relevant validation again after any rebase or integration that changes the tested commit.

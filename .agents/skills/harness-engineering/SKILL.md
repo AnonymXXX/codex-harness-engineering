@@ -5,33 +5,35 @@ description: "Choose risk-appropriate execution, worktree isolation, validation,
 
 # Harness Engineering
 
-Apply this workflow directly during software work; the user need not invoke a skill. Follow the runtime hierarchy and user authorization. Skill guidance neither overrides explicit user instructions nor grants external-action permissions.
+Use the lightest workflow that completes the user's intended task. Follow the global intent and authorization rules; this skill selects execution safeguards, not new permissions.
 
 ## Choose The Scope
 
-Classify the request using project rules, repository state, and the affected surface. Read only the references needed for that scope:
+Read the relevant project rules and inspect repository state. Distinguish a request for an answer, review, or diagnosis from a request to change something. Choose from the observed scope:
+
+Prefer the main working directory in every lane. Create a worktree only when the Git workflow's necessity criteria are met; a larger or riskier task alone is not a reason. Reuse an already suitable task checkout when continuing work rather than moving it solely to follow this default.
 
 - **Fast Lane:** a clear, cohesive local change in a safe worktree, without shared contracts/configuration, dependencies, generated artifacts, migrations, deployment, data, permissions, or security-sensitive behavior. File count alone does not decide risk.
-- **Standard/Heavy Lane:** for work beyond that boundary, read [Harness Engineering](../../../.codex/docs/workflows/harness-engineering.md) for risk lanes, proportionate checks, Capture Gate, and documentation maintenance.
-- **Medium/large Git edits:** also read [Git Worktree Workflow](../../../.codex/docs/workflows/git-worktree.md). Resolve symlink targets before choosing the owning repository. State isolation before editing and use its bootstrap, commit, preflight, and cleanup rules.
+- **Standard/Heavy Lane:** for broader work, read [Harness Engineering](../../../.codex/docs/workflows/harness-engineering.md) for proportional validation and conditional documentation capture. The lane alone does not require a plan, worktree, or extra skills.
+- **Medium/large Git edits:** also read [Git Worktree Workflow](../../../.codex/docs/workflows/git-worktree.md). Resolve symlink targets before choosing the owning repository. Explain any necessary worktree before creating it; apply bootstrap only to a newly created checkout, and follow the commit and integration rules in either location.
 
 Links above are relative to this repository's `.agents/skills/harness-engineering` directory; at runtime the same canonical documents are available under `~/.codex/docs/workflows/`.
 
 ## Fast Lane Contract
 
-Inspect relevant repository state and code, edit in the safe current worktree, and run `git diff --check` plus the narrowest useful existing lint/test. Run additional project-required checks when applicable. Avoid task worktrees, durable documents, execution plans, full builds, and global cleanup scans unless requested or evidence requires escalation. A reversible copy/format edit does not need a new test that merely repeats its implementation.
+Inspect relevant code, make the scoped edit in the safe current worktree, and run `git diff --check` plus the narrowest useful existing lint/test and project-required checks. Add tests only for meaningful behavior or regression risk. Once checks pass, repeat or broaden them only for new changes, failures, or unresolved concerns. Avoid task worktrees, durable documents, plans, full builds, and global cleanup scans unless requested or evidence requires escalation.
 
 Browser restrictions concern post-implementation acceptance: do not open pages/simulators, exercise UI, or run browser-driven suites unless explicitly requested or required by a higher-priority instruction. Research and explicitly requested browser operations remain allowed. Split mixed check commands and report omitted browser coverage. For UI reporting read the workflow's [Browser Acceptance](../../../.codex/docs/workflows/harness-engineering.md#browser-acceptance).
 
 ## Execution And Boundaries
 
-Continue authorized work to completion. Resolve routine implementation choices from project evidence; ask only when missing information materially changes scope, data, security, or irreversible effects. Continue independent safe work while the answer is pending.
+Carry authorized work through implementation and validation; a proposal or offer to continue is not completion of a change request. Resolve routine choices from evidence and prepare reviewable results before requesting missing authority. Continue independent work while a necessary answer is pending.
 
-A failed check is evidence to diagnose and repair within scope. An unmet gate blocks only the affected integration operation, not independently eligible local completion or authorized implementation and validation. Consult [Stop And Ask](../../../.codex/docs/workflows/git-worktree.md#stop-and-ask) before an action whose authority or safety remains unresolved; production operations, data changes, secrets/permissions, destructive Git operations, and MR/PR actions retain their authorization requirements. If an applicable skill instruction causes a pause, identify its exact source and explain why existing authorization is insufficient.
+A failed check calls for in-scope diagnosis and repair. A blocked operation does not block independent authorized work. Use [Stop And Ask](../../../.codex/docs/workflows/git-worktree.md#stop-and-ask) only for an unresolved boundary; the global rule owns how to explain a skill-caused pause.
 
-After validation, automatically commit and apply the worktree workflow's Local Auto-Merge rules; do not wait for a repeated merge instruction. Local integration, including local `main/master`, is independent of remote push authorization. For remote integration, the worktree workflow alone defines authorization, all seven High-confidence auto-integration gates, and preflight results. An explicit push request records browser acceptance as `passed`; commit-only leaves UI acceptance `pending`. Do not infer push or MR/PR authority from a check result. Keep unrelated changes isolated and retain blocked work for review.
+For implementation work, finish with a scoped commit and eligible [Local Auto-Merge](../../../.codex/docs/workflows/git-worktree.md#local-auto-merge), unless the user's instructions exclude them. The Git workflow owns commit convergence, remote authorization, preflight, and cleanup. Execute separately authorized remote integration; validation alone grants no push or MR/PR permission.
 
-Create durable documentation only for an explicit documentation request or when the workflow's Capture Gate passes. Create a resumable plan only when it materially helps larger or interruptible work. Subagent use follows global/runtime rules; no mandatory delegation protocol applies.
+Load the workflow's Capture Gate only for a durable-knowledge candidate or requested documentation work. Use a plan only when resumable state helps. Use subagents under global/runtime rules when a bounded independent task justifies coordination; no delegation quota applies. Keep inter-agent messages readable to humans.
 
 ## Specialist Routing
 
@@ -44,6 +46,6 @@ Use another skill only for a material task need, not a keyword or quota:
 
 ## Validation And Reporting
 
-After Harness skill/workflow/template/worktree-policy changes, run `uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor`. After adding, removing, renaming, installing, copying, or migrating a user-managed skill, run its `index --write`, then `index --check`. Metadata changes that cause index drift also need an index refresh. Doctor is read-only; findings do not authorize unrelated repairs. The workflow owns optional full/docs checks and periodic stale cleanup.
+After Harness changes, run `uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor`. For skill lifecycle changes or metadata-induced index drift, run its `index --write`, then `index --check`. Doctor is read-only; findings do not authorize unrelated repairs. Full/docs checks and periodic cleanup follow the workflow's conditional triggers.
 
-Report changes, relevant evidence, and unresolved limits. For rule gardening, identify the canonical files and validation. For UI changes, include the workflow's acceptance fields and actual integration state. Avoid empty boilerplate status sections.
+Lead with the outcome, then the evidence and remaining limitations. For rule gardening, identify canonical files and validation. For UI changes, use the workflow's acceptance fields and actual integration state; omit empty boilerplate sections.

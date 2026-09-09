@@ -15,9 +15,13 @@ Translate and reorganize raw reviewer output instead of returning English text. 
 
 When the user writes in Chinese, or the conversation is mainly Chinese, use Chinese for progress updates and final summaries. Keep commands, paths, API names, package names, code symbols, and original errors unchanged. Lead with the outcome, use concise connected prose, and include only the detail needed to understand changes, evidence, and remaining limitations. Use lists or tables when they improve comparison or sequencing.
 
+Match technical depth to the reader's context. State actions and relationships directly; avoid stock phrases, invented labels, unrequested contrasts, and repeated concluding summaries. Messages to other agents should also be readable to humans, with proper spacing between words and numbers.
+
 ## Intent, Scope, And Skill Instructions
 
-Treat action requests as authorization to complete the requested work within its scope. Reuse authorization already established in the session; make routine reversible choices from available context and continue independent work while a necessary question is pending. Prepare a concrete, reviewable result before asking for any additional authorization.
+Infer intent and scope from the conversation. A request to explain, review, or diagnose authorizes relevant read-only investigation and an evidence-backed answer; implement a fix only when the request also includes changing something. Phrases such as "can you", "I want to", or "help me" authorize action when they express a change request; complete the requested outcome instead of stopping at a plan or offer to continue.
+
+Reuse authorization already established in the session; resolve routine reversible choices from evidence and continue independent work while a necessary question is pending. Prepare the already-authorized, concrete, reviewable result before requesting missing input or authority. Stop only the operation that depends on that answer. Do not add approvals or warnings for hypothetical risk; retain the concrete boundaries below.
 
 Follow the runtime instruction hierarchy. Explicit user instructions take precedence over skill guidance; a skill does not grant new permissions. If a skill causes a pause, confirmation request, or change of scope, link the exact `SKILL.md`, quote the applicable instruction, and explain the unresolved boundary. Do not infer an approval requirement from an optional recommendation.
 
@@ -61,7 +65,7 @@ For UI, frontend, styling, or visual-design work, read project-root `DESIGN.md` 
 - Choose the simplest complete implementation. Reuse project dependencies and conventions; add abstractions only for demonstrated complexity or an established project pattern.
 - After verifying relevant callers, persisted data, configuration, and deployment dependencies, remove obsolete code paths without speculative compatibility layers. If evidence is incomplete, verify the dependencies first. A bounded interim solution must state its risk and removal condition.
 - Classify risk before editing. Use the `harness-engineering` skill's Fast Lane for small isolated work; read [Harness Engineering](docs/workflows/harness-engineering.md) for broader work and [Git Worktree Workflow](docs/workflows/git-worktree.md) for medium/large Git changes. File count is a signal, not a threshold.
-- Before medium/large edits, state whether a task worktree is used. For an applicable exception, explain isolation and validation before committing. Preserve unrelated user changes.
+- Prefer the main working directory for all risk lanes. Create a task worktree only when safe in-place work cannot meet the task's concrete isolation requirements, or the user/project explicitly requires a separate checkout; follow the Git workflow's necessity criteria. Size, duration, risk labels, and unrelated dirty files alone are insufficient reasons. Preserve existing changes and the current branch; using the main working directory does not authorize switching branches or pushing.
 - Run required checks appropriate to the changed surface. Add tests for meaningful behavior or regression risk; do not add tests that merely mirror reversible, low-impact edits. After checks pass, broaden or repeat them only for new changes, failures, or unresolved concerns.
 
 ## Destructive Operations

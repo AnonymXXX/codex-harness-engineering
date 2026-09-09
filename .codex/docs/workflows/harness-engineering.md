@@ -2,25 +2,35 @@
 
 Use harness engineering as the default way to work across projects: choose proportionate execution safeguards and capture only durable knowledge that future work actually needs.
 
+The global `AGENTS.md` owns intent, communication, and authorization boundaries; the skill owns the compact execution entrypoint; this document owns validation and knowledge capture; [Git Worktree Workflow](git-worktree.md) owns isolation and integration. Link to the owner instead of maintaining another checklist.
+
+Adapted from the [official GPT-6 Astra prompting guidance](https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices), verified 2026-09-09. Its eleven examples map to this Harness as follows; these are task-dependent defaults, not eleven mandatory steps:
+
+| Official examples | Harness application |
+| --- | --- |
+| 1–3: initiative and follow-through | Global intent rule: act within scope, persist, and prepare authorized work before asking |
+| 4–5: skill instruction conflicts | Global hierarchy and exact-source explanation when a skill changes the outcome |
+| 6–8: writing style | Global outcome-first prose, reader-appropriate detail, and direct language |
+| 9–10: delegation and agent messages | Existing runtime-compatible, bounded delegation; human-readable messages |
+| 11: testing and verification | Checks proportional to regression risk; no repetitive testing without new evidence |
+
 ## Risk Lanes
 
-This document is the complete reference. The harness-engineering Skill restates only the Fast Lane run-time contract so Fast Lane work does not need to read this file.
+Choose intent before a lane: read-only questions and diagnoses do not enter an implementation or Git integration flow. For authorized changes, the skill contains the self-contained Fast Lane contract; read this reference only when broader guidance is needed.
 
 Choose the lightest lane that safely covers the observed blast radius. Escalate when repository evidence contradicts the initial classification; do not escalate merely because a heavier check or another skill exists.
 
 ### Fast Lane
 
-Use when the request is clear, the change is cohesive and local, the current worktree is safe, and the change does not affect shared contracts, shared configuration, dependencies, generated artifacts, migrations, deployment, data, permissions, or security-sensitive behavior. File count is only a signal; a cohesive three-file local fix can remain Fast Lane.
-
-Inspect only the relevant state and code, edit in the current worktree, run `git diff --check`, and select the narrowest relevant lint or test. Do not create a task worktree, durable document, execution plan, full build, or global stale-worktree scan unless the user requests it or evidence requires escalation. For post-implementation acceptance, do not start a browser session unless the user explicitly requests browser validation or a higher-priority instruction requires it. This does not restrict research or explicitly requested browser operations. Harness itself does not require a remote fetch before a local Fast Lane edit.
+Use the [skill's Fast Lane Contract](../../../.agents/skills/harness-engineering/SKILL.md#fast-lane-contract) for clear, cohesive local changes with no shared or sensitive effects. A cohesive three-file local fix can qualify. Harness does not require a remote fetch before a local Fast Lane edit.
 
 ### Standard Lane
 
-Use for cohesive local features and fixes that exceed the Fast Lane but do not touch Heavy Lane surfaces. Read the relevant workflow, use a task worktree when coupling, repository state, or likely interruption makes isolation useful, and validate affected behavior without automatically running every available check.
+Use for cohesive local features and fixes that exceed the Fast Lane but do not touch Heavy Lane surfaces. Work in the main working directory by default and validate affected behavior without automatically running every available check. Create a worktree only under the Git workflow's necessity criteria.
 
 ### Heavy Lane
 
-Use for medium or large changes, shared behavior or contracts, configuration, generated artifacts, dependencies, migrations, releases, deployment, production operations, data, security, permissions, or unclear blast radius. Use proportionate validation and the integration/stop-condition workflow. Choose worktree isolation using the concrete criteria in [Git Worktree Workflow](git-worktree.md#when-to-use-a-worktree); the lane label alone does not require another checkout or a durable plan.
+Use for medium or large changes, shared behavior or contracts, configuration, generated artifacts, dependencies, migrations, releases, deployment, production operations, data, security, permissions, or unclear blast radius. Increase validation and respect operation-specific authorization; continue in the main working directory unless [Git Worktree Workflow](git-worktree.md#when-to-use-a-worktree) establishes a concrete need for another checkout. A worktree isolates local files, not external data or production effects. The lane label does not require another checkout or a durable plan.
 
 File count is a signal, not a hard boundary. A one-file security change is Heavy Lane; a cohesive three-file local fix can remain Fast Lane.
 
@@ -28,7 +38,7 @@ File count is a signal, not a hard boundary. A one-file security change is Heavy
 
 Subagent use follows the global/runtime rules; no Worker protocol or fixed delegation quota applies.
 
-Choose the smallest set of checks that can credibly detect a regression in the changed surface. Do not duplicate equivalent checks merely for ceremony.
+Choose the smallest set of checks that can credibly detect a regression in the changed surface. Add tests for meaningful behavior, not tests that merely reproduce a reversible low-impact edit. Once required checks pass, repeat or broaden them only for new changes, failures, or unresolved concerns. A failed check calls for diagnosis and in-scope repair; it does not automatically require permission.
 
 For an explicitly requested model migration or behavior regression, use the optional [behavior scenarios](../../../.agents/skills/harness-engineering/evals/README.md). They consume model usage and do not run as part of Doctor or ordinary implementation checks. Distinguish actual fixture execution, policy decisions, and untested real-system behavior.
 
@@ -75,7 +85,7 @@ Adapt to the project instead of forcing structure mechanically:
 
 ## Language Consistency
 
-When the user writes in Chinese, or the current conversation is mainly Chinese, ordinary task progress updates and final summaries should be in Chinese. Avoid raw English template headings for completed work, changed files, validation, and manual verification. Keep commands, paths, API names, package names, code symbols, and original error text unchanged.
+Follow the global [Language And Replies](../../AGENTS.md#language-and-replies) rule, including for plans and final handoffs.
 
 ## Durable Knowledge Capture
 
@@ -144,9 +154,7 @@ Create or update an execution plan only after execution begins and only when a l
 
 For long-running or interruptible work, keep the execution plan usable as a progress ledger. It should link to the source product/spec requirement, record implementation status by work item, note blockers and decisions, list validation/deployment status, and leave concrete next steps or commands so a later session can resume without reconstructing the conversation.
 
-For lingering task worktrees, keep a lightweight cross-task ledger in the integration or main worktree's execution-plan area or equivalent durable notes. The ledger exists so future sessions can discover unfinished task work from the main project entrypoint. If a dirty, unmerged, stale, or missing-on-disk worktree is discovered, inspect it read-only first and record its path, branch, status, changed-file summary, validation state if known, browser acceptance state (`not-applicable`, `pending`, `passed`, or `waived-by-high-confidence`), the task/thread reference for any user confirmation or explicit push request, high-confidence evidence when applicable, and recommended next step. Do not automatically delete, prune, reset, merge, or discard it unless the user explicitly asks or the standard worktree cleanup rules prove it is fully merged and clean.
-
-Do not dirty the integration or main worktree only to record a ledger entry. If the current task created an isolated ledger or rule-documentation update and it can be staged by explicit path without mixing unrelated changes, commit that documentation update separately. This also applies when the integration or main worktree has unrelated local changes that are safe to leave alone. If the ledger update is not path-isolated, overlaps unrelated user changes, or cannot be committed safely, do not write it into the main worktree; include the proposed ledger entry in the final response and pause for user direction.
+For unfinished worktrees, use the Git workflow's [Long-Running Worktree Ledger](git-worktree.md#long-running-worktree-ledger); it owns the fields, placement, and safe-commit conditions. If a ledger cannot be written without mixing user changes, report the resume information in the final handoff. A bookkeeping limitation alone does not pause otherwise authorized task work.
 
 When validation fails but appears unrelated to the current change, record the exact failing command, the observed failure, why it is believed to be pre-existing or out of scope, whether it blocks the current task, and the recommended follow-up. Do not silently treat unrelated validation failures as success.
 
