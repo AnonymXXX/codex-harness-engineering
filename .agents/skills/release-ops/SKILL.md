@@ -189,6 +189,8 @@ Execute mode:
 5. push branch and tag
 6. verify remote refs
 
+Use [Production Release Completion](../../../.codex/docs/workflows/harness-engineering.md#production-release-completion) as the completion boundary: stop after successful publication and remote-ref verification by default. Do not query or wait for production CI/build/deployment unless the user explicitly requests it; report those results as unchecked.
+
 ## Resources
 
 - Deterministic CLI: `scripts/release_ops.py`

@@ -35,6 +35,8 @@ For implementation work, finish with a scoped commit and eligible [Local Auto-Me
 
 Load the workflow's Capture Gate only for a durable-knowledge candidate or requested documentation work. Use a plan only when resumable state helps. Use subagents under global/runtime rules when a bounded independent task justifies coordination; no delegation quota applies. Keep inter-agent messages readable to humans.
 
+For production tag releases, follow [Production Release Completion](../../../.codex/docs/workflows/harness-engineering.md#production-release-completion): finish after pushing and verifying remote refs; wait for production builds or deployment only when explicitly requested by the user.
+
 ## Specialist Routing
 
 Use another skill only for a material task need, not a keyword or quota:

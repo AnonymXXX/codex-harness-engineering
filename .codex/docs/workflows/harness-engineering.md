@@ -51,6 +51,14 @@ For an explicitly requested model migration or behavior regression, use the opti
 | Dependency, shared configuration, generated artifact, or build pipeline | Relevant full test/build path |
 | Push, release, deployment, or production operation | Project-required validation and integration preflight; record acceptance evidence separately from operation-specific authorization |
 
+## Production Release Completion
+
+For an authorized production release through Git tags, complete the required pre-push validation and release preflight, push the production branch when needed and the release tag, then verify that the remote refs resolve to the intended commit. Successful tag publication and remote-ref verification complete the release task by default.
+
+Do not automatically open CI pages, query or poll production pipelines, wait for image builds or deployment, or schedule follow-up monitoring after this point. Continue those steps only when the user explicitly requests build/deployment verification or monitoring. Ordinary requests such as `发布`, `上线`, or `上生产` do not by themselves request waiting for the production build.
+
+Report the published tag and commit, and state that production build/deployment results were not checked. Do not claim that the build, deployment, or production acceptance succeeded based on a pushed tag. This completion boundary does not change release authorization, pre-push checks, or explicitly requested deployment work that is not completed by publishing a tag.
+
 ## Browser Acceptance
 
 Continue to run proportionate non-browser validation by default, including relevant unit and integration tests, lint, typecheck, build, `git diff --check`, and static final-diff review. A build remains a non-browser check when it does not start a browser, simulator, visual comparison, or interactive acceptance flow. API and database integration tests also remain eligible when their existing data and external-system safeguards permit them.
