@@ -286,6 +286,17 @@ class PolicyDocumentationTests(unittest.TestCase):
             (REPO_ROOT / ".agents" / "skills" / retired_browser_skill).exists()
         )
 
+    def test_structured_interfaces_precede_browser_fallback(self) -> None:
+        global_rules = GLOBAL_AGENTS.read_text(encoding="utf-8")
+
+        for required_text in (
+            "DNS/子域名解析",
+            "先加载适用 Skill",
+            "专用 MCP/官方 API → 官方 CLI → `ego-browser`",
+            "只有前述路径不可用、能力不足",
+        ):
+            self.assertIn(required_text, global_rules)
+
     def test_explicit_push_request_is_separate_from_browser_acceptance(self) -> None:
         # Entry points may link to the canonical rule instead of copying it.
         for path in (GLOBAL_AGENTS, HARNESS_SKILL):

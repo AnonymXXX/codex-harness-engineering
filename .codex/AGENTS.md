@@ -36,6 +36,9 @@ Follow the runtime instruction hierarchy. Explicit user instructions take preced
 Keep user-managed skills under `~/.agents/skills`; reserve `~/.codex/skills` for Codex-managed system skills. After adding, removing, renaming, installing, copying, or migrating one, run `uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write` followed by `index --check`.
 
 ## Browser And Web Access
+
+涉及云资源、DNS/子域名解析、代码托管、部署和其他可通过结构化接口完成的操作时，先加载适用 Skill，并按专用 MCP/官方 API → 官方 CLI → `ego-browser` 的顺序选择执行路径。不得因浏览器可用就跳过 Skill、MCP/API 或 CLI；只有前述路径不可用、能力不足，或任务本身需要登录态页面、可视化核验或网页交互时，才使用浏览器。
+
 联网调研、网页读取、登录态操作、浏览器/CDP 控制和本地页面验证统一使用 `ego-browser`（ego lite）。每个任务使用独立 Task Space，复用其登录态，不抢占用户标签页或切换 macOS 桌面。
 
 在 JumpServer Web 终端中执行命令时，使用页面底部 `Batch commands` 的命令输入框与 `Send` 按钮；不向 xterm Canvas 的隐藏 textarea 注入文本。命令执行后通过终端视口和 CDP 截图核对输出。
