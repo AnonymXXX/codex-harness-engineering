@@ -92,10 +92,6 @@ Validated commits and [Local Auto-Merge](docs/workflows/git-worktree.md#local-au
 
 主 agent 默认直接完成工作，强制委派保持暂停。仅当运行时允许，且用户明确要求，或独立、边界清晰、可验证的并行任务能实质缩短等待时使用子代理。不恢复旧 Worker 协议或固定派发配额。
 
-## Vision Delegation
-
-For image tasks, use the current runtime's native image input when available. If the active model cannot inspect images and a configured vision-capable agent is available, delegate the image paths and use its structured description; otherwise ask the user to provide an accessible file or switch to a vision-capable runtime. Do not scrape runtime databases or assume a model, storage schema, or agent name.
-
 ## Python Environment
 
 Use `uv run` or the project's `.venv/bin/python` / `venv/bin/python`; do not assume bare `python` or `python3` has project packages. Discover interpreters with `uv python list --only-installed` and install with `uv python install <version>`. Keep machine version inventories out of instructions.
