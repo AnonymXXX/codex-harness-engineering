@@ -31,7 +31,9 @@ Carry authorized work through implementation and validation; a proposal or offer
 
 A failed check calls for in-scope diagnosis and repair. A blocked operation does not block independent authorized work. Use [Stop And Ask](../../../.codex/docs/workflows/git-worktree.md#stop-and-ask) only for an unresolved boundary; the global rule owns how to explain a skill-caused pause.
 
-For implementation work, finish with a scoped commit and eligible [Local Auto-Merge](../../../.codex/docs/workflows/git-worktree.md#local-auto-merge), unless the user's instructions exclude them. The Git workflow owns commit convergence, remote authorization, preflight, and cleanup. Execute separately authorized remote integration; validation alone grants no push or MR/PR permission.
+For implementation work, finish with a scoped commit and eligible [Local Auto-Merge](../../../.codex/docs/workflows/git-worktree.md#local-auto-merge), unless the user's instructions exclude them.
+
+Before creating or amending a content commit, load `git-auto-commit` for grouping, staging, and commit-message rules, including routine automatic commits. On an explicit commit request, load it to inspect the requested changes even if the worktree appears clean. The Git workflow owns commit convergence, remote authorization, preflight, and cleanup. Execute separately authorized remote integration; validation alone grants no push or MR/PR permission.
 
 Load the workflow's Capture Gate only for a durable-knowledge candidate or requested documentation work. Use a plan only when resumable state helps. Use subagents under global/runtime rules when a bounded independent task justifies coordination; no delegation quota applies. Keep inter-agent messages readable to humans.
 
@@ -41,6 +43,7 @@ For production tag releases, follow [Production Release Completion](../../../.co
 
 Use another skill only for a material task need, not a keyword or quota:
 
+- `git-auto-commit`: a content commit or amendment, or an explicit request to commit; follow its grouping and message rules before Git integration.
 - `domain-modeling`: unresolved domain language or durable invariants.
 - `codebase-design`: a non-trivial module/interface or test-seam decision.
 - `tdd`: explicit test-first work or meaningful behavioral regression protection.
