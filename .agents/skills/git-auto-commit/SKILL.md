@@ -49,7 +49,7 @@ Use [message examples](references/git-commit-command.md) only when preparing a c
 - When a body exists, the final commit message must be `subject`, then one blank line, then the bullet list body.
 - Use a subject-only commit only when every staged file serves one clear change that the subject fully explains.
 - A mixed commit MUST include a body. This includes multiple modules, multiple business behaviors, code plus docs, source changes plus generated deliverables, or config changes plus feature/fix work.
-- If one file contains mixed logic, choose the dominant change as the subject and describe secondary changes in the body.
+- For a mixed commit, make the subject describe the change most important to the user's requirement and put secondary changes in the body, including mixed logic within one file. Judge importance by the resulting behavior, not file count or diff size.
 - If generated deliverables must be committed with source changes, describe both the source change and generated result in the body.
 - Write the body in Chinese bullet lines when extra context is needed, with no blank lines between bullets.
 - Put all body bullets in a single commit-message paragraph. Do not use one body `-m` flag per bullet, because Git will insert blank lines between paragraphs.
