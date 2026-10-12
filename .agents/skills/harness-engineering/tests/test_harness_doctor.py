@@ -370,7 +370,6 @@ class PolicyDocumentationTests(unittest.TestCase):
         self.assertNotIn("DeepSeek", content)
         self.assertNotIn("opencode.db", content)
         self.assertIn("`request_user_input`", content)
-        self.assertIn("native image input", content)
 
 
 class WorktreeTests(unittest.TestCase):

@@ -105,6 +105,18 @@ caches. After installation, start a new Codex task to load the global rules and 
 Historical releases provide the one-command installer `scripts/harness_setup.py` and `profiles.json`.
 To automate installation, restore those two files from Git history and follow the README of that era.
 
+## Rule Provenance
+
+Adapted from the [official GPT-6 Astra prompting guidance](https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices), verified 2026-09-09. Its eleven examples map to this Harness as follows; these are task-dependent defaults, not eleven mandatory steps:
+
+| Official examples | Harness application |
+| --- | --- |
+| 1–3: initiative and follow-through | Global intent rule: act within scope, persist, and prepare authorized work before asking |
+| 4–5: skill instruction conflicts | Global hierarchy and exact-source explanation when a skill changes the outcome |
+| 6–8: writing style | Global outcome-first prose, reader-appropriate detail, and direct language |
+| 9–10: delegation and agent messages | Existing runtime-compatible, bounded delegation; human-readable messages |
+| 11: testing and verification | Checks proportional to regression risk; no repetitive testing without new evidence |
+
 ## Layout
 
 - `.codex/`: global agent rules and Harness workflow documents.

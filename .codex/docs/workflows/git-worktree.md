@@ -69,8 +69,7 @@ Do not leave the integration or main worktree dirty just to record ledger status
 
 ## After Completing The Task
 
-- Run the relevant validation commands. For UI-affecting work, use non-browser checks only unless the user explicitly requests browser validation or a higher-priority instruction requires it; do not run Playwright, Cypress, mini-program E2E, screenshot regression, or interactive browser acceptance by default.
-- If an aggregate command includes browser-driven checks, run separable non-browser tests, lint, typecheck, and build commands instead. Report browser coverage that could not be separated and was skipped.
+- Run the relevant validation commands. For UI-affecting work, [Browser Acceptance](harness-engineering.md#browser-acceptance) owns non-browser check selection and omitted-coverage reporting.
 - If validation passes, automatically commit small low-risk implementation changes with a concise commit message unless the task is exploratory, temporary, explicitly marked no-commit, or the user asks to inspect the diff first.
 - For medium or large changes, briefly summarize the diff and validation result before committing, then continue without waiting unless the user asked to inspect the diff first or a stop condition applies.
 - Treat validated commit, eligible local auto-merge, separately authorized remote integration, and cleanup as the normal autonomous completion path. Do not end with "ready to merge" or ask the user to repeat a merge request when the applicable gates pass. Record acceptance evidence and integration basis separately under [Browser Acceptance](harness-engineering.md#browser-acceptance). A commit-only request does not itself authorize integration.

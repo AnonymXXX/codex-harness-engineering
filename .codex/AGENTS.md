@@ -49,9 +49,7 @@ Keep user-managed skills under `~/.agents/skills`; reserve `~/.codex/skills` for
 
 ## Browser Acceptance
 
-Post-implementation browser acceptance requires an explicit user request or a higher-priority instruction. This does not restrict web research or requested browser operations. Run proportionate non-browser checks and static final-diff review; separate browser-driven checks from aggregate commands and report omitted coverage.
-
-For UI changes, follow [Browser Acceptance](docs/workflows/harness-engineering.md#browser-acceptance) for acceptance evidence and reporting. Keep observed acceptance separate from integration authorization; a push request is not evidence that testing passed. Automatic remote integration requires every [High-confidence auto-integration](docs/workflows/git-worktree.md#high-confidence-auto-integration) gate. Neither acceptance status nor integration eligibility grants additional external-action permissions.
+Post-implementation browser acceptance requires an explicit user request or a higher-priority instruction; web research and requested browser operations are unaffected. [Browser Acceptance](docs/workflows/harness-engineering.md#browser-acceptance) owns non-browser check selection, omitted-coverage reporting, and UI acceptance evidence. Keep observed acceptance separate from integration authorization; a push request is not evidence that testing passed. Automatic remote integration requires every [High-confidence auto-integration](docs/workflows/git-worktree.md#high-confidence-auto-integration) gate. Neither acceptance status nor integration eligibility grants additional external-action permissions.
 
 ## Human Verification（验证码/人机验证）
 

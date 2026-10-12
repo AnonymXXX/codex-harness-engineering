@@ -23,7 +23,7 @@ Links above are relative to this repository's `.agents/skills/harness-engineerin
 
 Inspect relevant code, make the scoped edit in the safe current worktree, and run `git diff --check` plus the narrowest useful existing lint/test and project-required checks. Add tests only for meaningful behavior or regression risk. Once checks pass, repeat or broaden them only for new changes, failures, or unresolved concerns. Avoid task worktrees, durable documents, plans, full builds, and global cleanup scans unless requested or evidence requires escalation.
 
-Browser restrictions concern post-implementation acceptance: do not open pages/simulators, exercise UI, or run browser-driven suites unless explicitly requested or required by a higher-priority instruction. Research and explicitly requested browser operations remain allowed. Split mixed check commands and report omitted browser coverage. For UI reporting read the workflow's [Browser Acceptance](../../../.codex/docs/workflows/harness-engineering.md#browser-acceptance).
+Run post-implementation browser acceptance only when explicitly requested or required by a higher-priority instruction; follow the workflow's [Browser Acceptance](../../../.codex/docs/workflows/harness-engineering.md#browser-acceptance) for check selection and UI reporting.
 
 ## Execution And Boundaries
 

@@ -97,6 +97,18 @@ uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py doctor
 历史版本提供一键安装器 `scripts/harness_setup.py` 与 `profiles.json`；如需自动化安装，可从
 Git 历史恢复这两个文件后按当时的 README 使用。
 
+## 规则依据
+
+规则改编自 [OpenAI 官方 GPT-6 Astra prompting guidance](https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices)（核实于 2026-09-09）。其 11 个示例与 Harness 的对应关系如下，均为按任务取用的默认做法，而非 11 个必经步骤：
+
+| 官方示例 | Harness 落点 |
+| --- | --- |
+| 1–3：主动性与持续推进 | 全局意图规则：在范围内行动、持续推进，提问前先准备好已授权的结果 |
+| 4–5：Skill 指令冲突 | 全局优先级规则；Skill 改变结果时引用确切来源说明 |
+| 6–8：写作风格 | 全局的结果先行、按读者调整详略、直接表达 |
+| 9–10：委派与 Agent 消息 | 运行时兼容的有界委派；消息对人可读 |
+| 11：测试与验证 | 按回归风险选择检查；没有新证据不重复测试 |
+
 ## 目录结构
 
 - `.codex/`：全局 Agent 规则与 Harness 工作流文档。
