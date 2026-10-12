@@ -7,11 +7,10 @@ For complete modules, page families, or multi-route workflows, read `feature-sli
 - Confirm whether the route belongs in the main package, a normal subpackage, or an independent subpackage.
 - Keep startup pages and `tabBar` pages in the main package.
 - Keep routes from the same low-frequency feature cluster in the same subpackage instead of scattering them across many small packages.
-- Wrap every new route page in the shared `PageLayout`.
+- Wrap every new route page in the shared `PageLayout`; when the repo already has a page shell that fulfills the `PageLayout` role, use that shell instead of adding a second one.
 - Use `Composition API` with `<script setup lang="ts">` for new route SFCs that contain script logic.
 - If the repo already contains a route-matched local prototype, HTML mock, or other visual artifact for the surface, translate that artifact before redesigning anything.
 - Choose the lightest valid scroll strategy before filling in the page body: plain `scroll-view`, native refresher list, shared custom scroll wrapper, tabbed scroll container, or anchored chat scroll.
-- Reuse the project's current page shell and navigation pattern when it already fulfills the `PageLayout` role.
 - Reuse the shared global modal wrapper for new confirm or alert flows before adding page-local confirmation state.
 - Keep route params parsing at the page entry.
 - Put page-specific child UI in the route's `components/` directory.

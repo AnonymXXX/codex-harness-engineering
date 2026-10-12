@@ -2,9 +2,9 @@
 
 ## Creation Boundary
 
-Read existing root `AGENTS.md` before editing. For an existing project, create missing instructions only when requested or when the Harness Capture Gate passes; skill activation alone does not authorize a document or repository initialization.
+Read the existing root agent instructions (`AGENTS.md`, and `CLAUDE.md` when present) before editing. For an existing project, create missing instructions only when requested or when the Harness Capture Gate passes; skill activation alone does not authorize a document or repository initialization.
 
-For an explicitly requested new uni-app WeChat mini-program bootstrap, create a minimal root `AGENTS.md` and initialize Git when the directory is not already part of a repository. Confirm the framework using the detection rules in [SKILL.md](../SKILL.md#detect-the-project-first); do not infer uni-app from native WeChat files alone.
+For an explicitly requested new uni-app WeChat mini-program bootstrap, create a minimal root `AGENTS.md`, add a one-line root `CLAUDE.md` containing `@AGENTS.md` so Claude Code loads the same rules, and initialize Git when the directory is not already part of a repository. Confirm the framework using the detection rules in [SKILL.md](../SKILL.md#detect-the-project-first); do not infer uni-app from native WeChat files alone.
 
 ## Root AGENTS.md Template
 
@@ -29,4 +29,4 @@ Use $develop-uniapp-miniapp by default for new uni-app mini-program work in this
 
 - Apply the creation boundary above; existing-project edits do not require bootstrap side effects.
 - Do not stage, commit, push, tag, or change branches from this skill; use `$git-auto-commit` or `$release-ops` for those workflows.
-- Do not treat the absence of that file as permission to refactor the repo.
+- Do not treat the absence of these files as permission to refactor the repo.

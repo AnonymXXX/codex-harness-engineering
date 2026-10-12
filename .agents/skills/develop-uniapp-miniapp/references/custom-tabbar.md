@@ -102,6 +102,11 @@ When a feature slice needs bottom navigation plus page-shell changes, also read 
 - If `pages.json` has `tabBar.custom: true` and the visible tabbar is a shared Vue component, diagnose it as shared Vue custom tabbar mode.
 - If `pages.json` leaves the native tabbar visible and a page shell also renders a bottom navigation component, diagnose it as a duplicate-rendering mixed pattern and remove or hide one path.
 
+## Official custom-tab-bar Files
+
+- In uni-app WeChat projects, implement official `custom-tab-bar/` as native mini-program files (`index.js`, `index.json`, `index.wxml`, `index.wxss`) in the source-root `custom-tab-bar/` directory, not as a Vue SFC such as `custom-tab-bar/index.vue`.
+- In shared Vue tabbar mode, implement a normal Vue component such as `AppTabbar.vue`; do not use visual-shape terms as generic component names.
+
 ## Existing Code Boundary
 
 - Do not replace an existing stable bottom-navigation implementation unless the user asks for that change.

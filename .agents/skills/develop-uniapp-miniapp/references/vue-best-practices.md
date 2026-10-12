@@ -35,6 +35,11 @@
 3. Move route-owned logic into the route's `hooks/` directory when orchestration becomes heavy.
 4. Promote the abstraction to `src/components` or `src/hooks` only after cross-route reuse or when the abstraction is already clearly generic.
 
+## Custom Events
+
+- Declare custom events in camelCase in script, for example `defineEmits<{ (e: 'quickAction'): void }>()` and `emit('quickAction')`.
+- Listen with hyphenated attributes in parent templates, for example `@quick-action`; this satisfies both `vue/custom-event-name-casing` and template hyphenation lint rules.
+
 ## Existing Code Boundary
 
 - Apply these defaults to newly added code and to existing code only when the user explicitly asks to modify it.

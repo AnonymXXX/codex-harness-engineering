@@ -25,11 +25,9 @@ export default defineConfig(async () => {
       }),
     ],
     css: {
-      postcss: {
-        plugins: [
-          require('tailwindcss'),
-          require('autoprefixer'),
-        ],
+      preprocessorOptions: {
+        // uni-app pins Vite 5.2, which still calls the legacy Sass JS API.
+        scss: { silenceDeprecations: ['legacy-js-api'] },
       },
     },
   }

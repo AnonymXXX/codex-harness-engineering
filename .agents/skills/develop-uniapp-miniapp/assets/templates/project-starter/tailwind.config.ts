@@ -1,5 +1,5 @@
-import { getIconCollections, iconsPlugin } from '@egoist/tailwindcss-icons'
 import type { Config } from 'tailwindcss'
+import { getIconCollections, iconsPlugin } from '@egoist/tailwindcss-icons'
 import plugin from 'tailwindcss/plugin'
 
 const iconMaskFix = plugin(({ addUtilities }) => {

@@ -2,9 +2,9 @@
 
 ## Requirement
 
-- Every confirmed uni-app mini-program project should expose one shared global modal capability.
+- A project should have at most one shared global modal capability.
 - Reuse an existing global modal system when the repo already has one coherent host plus state layer.
-- If the repo lacks a shared global modal, add a shared `AppModal`, `modalStore`, and `useAppModal`.
+- If the repo lacks one, add `AppModal`, `modalStore`, and `useAppModal` (copy from `assets/templates/project-starter/src/`) only when the requested feature or foundation work needs app-wide confirm, alert, or sheet prompts; small unrelated edits do not require introducing it.
 
 ## Ownership
 

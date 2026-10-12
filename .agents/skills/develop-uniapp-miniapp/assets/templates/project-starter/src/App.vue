@@ -1,7 +1,3 @@
-<template>
-  <AppModal />
-</template>
-
 <script setup lang="ts">
 import { onLaunch, onShow } from '@dcloudio/uni-app'
 import AppModal from './components/AppModal.vue'
@@ -14,6 +10,10 @@ onShow(() => {
   console.log('App Show')
 })
 </script>
+
+<template>
+  <AppModal />
+</template>
 
 <style lang="scss">
 @tailwind base;

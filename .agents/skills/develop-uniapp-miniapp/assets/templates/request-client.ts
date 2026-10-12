@@ -15,7 +15,8 @@ export interface RequestClientOptions {
 }
 
 export interface RequestOptions extends UniApp.RequestOptions {
-  loading?: boolean
+  /** `true` shows the default text; a string overrides it. */
+  loading?: boolean | string
   showError?: boolean
   _retried?: boolean
 }
@@ -35,7 +36,7 @@ export class RequestClient {
 
     try {
       await this.options.ensureReady?.()
-      const method = (options.method || 'GET').toUpperCase()
+      const method = (options.method || 'GET').toUpperCase() as NonNullable<UniApp.RequestOptions['method']>
       let headers: Record<string, any> = { ...(options.header || {}) }
       const token = this.options.getToken?.()
       if (token)

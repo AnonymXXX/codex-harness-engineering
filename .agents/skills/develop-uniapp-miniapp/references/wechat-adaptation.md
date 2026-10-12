@@ -37,4 +37,5 @@
 ## Platform Boundaries
 
 - Treat WeChat behavior as the default when a platform-specific choice is required.
+- Do not add uni-app conditional compilation (`#ifdef`, `#ifndef`) or platform-specific branches unless the user asks for multi-platform behavior or the existing target requires it.
 - Avoid introducing H5-only CSS or browser-only APIs into shared mini-program surfaces.

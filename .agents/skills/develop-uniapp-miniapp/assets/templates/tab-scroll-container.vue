@@ -244,7 +244,7 @@ function finishRefresh(tabValue: string, error = false) {
 }
 
 function toSelectorKey(value: string) {
-  return String(value).replace(/[^a-zA-Z0-9_-]/g, '-')
+  return String(value).replace(/[^\w-]/g, '-')
 }
 
 const {

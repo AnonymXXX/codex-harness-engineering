@@ -1,5 +1,5 @@
-import { computed, ref } from 'vue'
 import { onHide, onShow } from '@dcloudio/uni-app'
+import { computed, ref } from 'vue'
 
 export function usePageState() {
   const keyword = ref('')

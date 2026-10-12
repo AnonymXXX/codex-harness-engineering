@@ -20,7 +20,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  (e: 'nav-click-left'): void
+  (e: 'navClickLeft'): void
 }>()
 
 const slots = useSlots()
@@ -44,7 +44,7 @@ const bottomStyle = computed(() => ({
 }))
 
 function handleClickLeft() {
-  emit('nav-click-left')
+  emit('navClickLeft')
 
   if (props.customBack || !showLeftAction.value)
     return

@@ -66,6 +66,11 @@
 - Keep route pages on the shared modal hook or wrapper instead of mounting duplicate global hosts.
 - A page-local modal component is still valid when the body is feature-specific and not suitable for the shared global modal surface.
 
+## App.vue Shape
+
+- Keep `App.vue` minimal, but always keep a non-empty `<script>` or `<template>` block; uni-app Vite builds reject a style-only SFC.
+- Mount global UI hosts such as the shared modal in `App.vue`; keep `PageLayout` free of required global hosts in new code.
+
 ## Existing Code Boundary
 
 - For existing repos, reuse or extend the current page shell when it already matches this split.

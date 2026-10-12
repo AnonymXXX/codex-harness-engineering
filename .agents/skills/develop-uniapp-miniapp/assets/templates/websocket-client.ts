@@ -32,24 +32,30 @@ export class WebSocketClient {
     this.connecting = true
     this.manualClose = false
 
-    this.socket = uni.connectSocket({
+    // Passing a callback makes uni.connectSocket return a SocketTask instead of a Promise.
+    const socket = uni.connectSocket({
       url: `${this.options.url}${path}`,
+      complete: () => {},
     })
+    this.socket = socket
 
-    this.socket.onOpen(() => {
+    socket.onOpen(() => {
       this.connecting = false
       this.reconnectAttempts = 0
       this.startHeartbeat()
     })
 
-    this.socket.onMessage((event) => {
+    socket.onMessage((event) => {
       const payload = JSON.parse(event.data as string)
       const type = payload.type || '*'
       this.handlers.get(type)?.forEach(handler => handler(payload.data))
       this.handlers.get('*')?.forEach(handler => handler(payload))
     })
 
-    this.socket.onClose(() => {
+    socket.onClose(() => {
+      // Ignore late close events from a socket that has already been replaced.
+      if (this.socket !== socket)
+        return
       this.stopHeartbeat()
       this.socket = null
       this.connecting = false
@@ -57,7 +63,7 @@ export class WebSocketClient {
         this.scheduleReconnect(path)
     })
 
-    this.socket.onError(() => {
+    socket.onError(() => {
       this.stopHeartbeat()
       this.connecting = false
     })

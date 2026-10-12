@@ -1,5 +1,5 @@
-import { storeToRefs } from 'pinia'
 import type { ModalOptions } from '../stores/modal'
+import { storeToRefs } from 'pinia'
 import { useModalStore } from '../stores/modal'
 
 export function useAppModal() {

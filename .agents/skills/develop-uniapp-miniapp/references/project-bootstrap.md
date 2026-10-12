@@ -20,9 +20,10 @@ If project files already exist, do not overwrite them blindly. Switch to extensi
 1. Copy `assets/templates/project-starter/` into the working directory.
 2. Rename the package name to match the directory name if the user did not provide one.
 3. Keep the app generic and WeChat-first.
-4. Create the root `AGENTS.md` immediately using `references/activation-and-agents.md`.
+4. Create the root `AGENTS.md` and the one-line `CLAUDE.md` (`@AGENTS.md`) immediately using `references/activation-and-agents.md`.
 5. After scaffolding, treat the directory as a normal uni-app mini-program repo and follow the rest of this skill.
 6. Install dependencies with `pnpm`, and prefer `pnpm` for all subsequent script execution.
+7. Run `pnpm build:mp-weixin`, `pnpm type-check`, and `pnpm lint`; the unmodified starter passes all three, so any failure comes from the bootstrap edits.
 
 ## Starter Scope
 

@@ -26,7 +26,7 @@ async function submit() {
         <view class="mb-[12rpx] text-[24rpx] text-white/70">
           标题
         </view>
-        <input v-model="form.title" class="min-h-[88rpx] text-[24rpx]" />
+        <input v-model="form.title" class="min-h-[88rpx] text-[24rpx]">
       </view>
       <view class="mb-[24rpx] rounded-[24rpx] bg-white/5 p-[24rpx]">
         <view class="mb-[12rpx] text-[24rpx] text-white/70">

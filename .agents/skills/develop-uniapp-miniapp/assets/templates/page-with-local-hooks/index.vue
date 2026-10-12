@@ -18,7 +18,7 @@ const { keyword, loading, statusText, setKeyword, handleSubmit } = usePageState(
           placeholder="请输入关键词"
           placeholder-style="font-size: 24rpx; color: rgba(255, 255, 255, 0.4);"
           @input="setKeyword(($event as any).detail.value)"
-        />
+        >
       </view>
 
       <PageSectionCard
