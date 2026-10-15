@@ -45,6 +45,7 @@ Keep user-managed skills under `~/.agents/skills`; reserve `~/.codex/skills` for
 
 - Codex：默认使用 Browser 插件（应用内浏览器）；任务需要用户 Chrome 的登录态、Cookie、扩展或已打开标签页，或用户点名 Chrome 时，使用 Chrome 插件（ChatGPT Chrome 扩展）。
 - Claude Code：按 `~/.claude/rules/harness-platform-adapter.md` 使用内置浏览器面板和 Claude in Chrome。
+- 两个平台通用：应用内浏览器遇到登录墙（跳转登录页、内容或搜索要求登录）且任务需要该内容时，改用 Chrome 复用用户登录态，不降级为只查公开内容；Chrome 中仍未登录时按 Human Verification 交给用户登录。站点安全策略拦截不属于登录墙，不得换浏览器绕过。
 
 不抢占用户操作：浏览器工作默认在后台进行，只在 Agent 自己新建的标签页、窗口或标签组中操作；除非用户明确指定，不聚焦、接管、导航或关闭用户原有标签页；用户正在操作 Agent 需要的页面时等待用户，不强行接管。任务完成后关闭 Agent 创建的页面，仅在用户要求保留、页面本身是交付物或需要用户继续操作时保留。节省 token：先用元素查找、可访问性树或页面文本定位和读取，仅在布局、图片、二维码等视觉内容必要或文本工具无法回答时截图，并优先缩小比例或局部放大；可预判的连续步骤（导航、点击、等待、读取、最终截图）合并为一次批量调用；已知深链直接打开，不逐级点菜单；只加载与当前请求范围相关的 Skill。
 
