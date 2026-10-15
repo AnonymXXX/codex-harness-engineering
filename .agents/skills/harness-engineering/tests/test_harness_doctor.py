@@ -262,7 +262,7 @@ class PolicyDocumentationTests(unittest.TestCase):
         self.assertIn("web research", content)
         self.assertIn("authenticated web operations", content)
 
-    def test_ego_browser_is_the_only_browser_workflow(self) -> None:
+    def test_platform_browsers_replace_ego_browser(self) -> None:
         retired_browser_skill = "web" + "-access"
         policy_paths = (
             GLOBAL_AGENTS,
@@ -278,8 +278,11 @@ class PolicyDocumentationTests(unittest.TestCase):
                 self.assertNotIn(retired_browser_skill, content)
 
         global_rules = GLOBAL_AGENTS.read_text(encoding="utf-8")
-        self.assertIn("`ego-browser`", global_rules)
-        self.assertIn("以当前 `ego-browser` Skill 及其 API 文档为准", global_rules)
+        self.assertIn("不使用 `ego-browser`", global_rules)
+        self.assertIn("Chrome 插件（ChatGPT Chrome 扩展）", global_rules)
+        self.assertIn("harness-platform-adapter.md", global_rules)
+        self.assertIn("不抢占用户操作", global_rules)
+        self.assertNotIn("Task Space", global_rules)
         self.assertNotIn("`handOffTaskSpace`", global_rules)
         self.assertNotIn("`completeTaskSpace`", global_rules)
         self.assertFalse(

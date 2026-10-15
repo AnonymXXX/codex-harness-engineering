@@ -175,7 +175,7 @@ A project rule or current-task instruction such as "do not push" overrides every
 ### MR Flow
 
 - An authorization to "push and merge" covers pushing the current task branch, creating its MR/PR, merging it, and deleting the merged current-task source branch. Push-only authorization does not authorize creating or merging an MR.
-- Use the project's configured provider workflow. For GitHub platform objects use `github-cli-ops`; for GitLab use the established authenticated CLI or the `ego-browser` Task Space path without bypassing platform policy.
+- Use the project's configured provider workflow. For GitHub platform objects use `github-cli-ops`; for GitLab use the established authenticated CLI or the platform browser (Codex Chrome plugin / Claude in Chrome) without bypassing platform policy.
 - Wait for required automated checks when they exist. If human approval is required, leave the MR open and report that blocker rather than approving on someone else's behalf.
 - An explicit MR/PR request supplies authorization only for the requested operations. Apply the same unrequested-browser-acceptance rule as an explicit push, while keeping acceptance evidence separate under [Browser Acceptance](harness-engineering.md#browser-acceptance). A push-only request does not authorize MR/PR creation or merge.
 - When the shared task branch contains multiple commits for one requirement, enable the platform's squash option before merge. Do not rewrite or force-push the shared source branch merely to make its intermediate history cleaner.

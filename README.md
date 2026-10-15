@@ -70,13 +70,13 @@ Codex 只能分析当前任务中你明确授权且本机可访问的内容。�
 
 - 核心工作流：`harness-engineering`，以及 `codebase-design`、`diagnosing-bugs`、
   `domain-modeling`、`tdd` 四个核心工程 Skill。
-- 常用领域 Skill：`git-auto-commit`、`github-cli-ops`、`release-ops`、`ego-browser`、
+- 常用领域 Skill：`git-auto-commit`、`github-cli-ops`、`release-ops`、
   `frontend-design`、`develop-uniapp-miniapp`、`wechat-miniprogram-ci-upload`。
 
 ## 安装
 
-本机已经安装时直接使用。换机或重装时，在 macOS 上安装 Codex CLI、Git、`uv`、GitHub CLI
-和 ego lite，然后手动创建 Harness 符号链接。`ego-browser` 由 ego lite 提供，不由本仓库复制：
+本机已经安装时直接使用。换机或重装时，在 macOS 上安装 Codex CLI、Git、`uv`、GitHub CLI，
+然后手动创建 Harness 符号链接。浏览器使用 Codex 的 Browser/Chrome 插件或 Claude 的内置浏览器与 Claude in Chrome，无需另装浏览器：
 
 ```bash
 gh repo clone AnonymXXX/codex-harness-engineering ~/.local/share/codex-harness-engineering

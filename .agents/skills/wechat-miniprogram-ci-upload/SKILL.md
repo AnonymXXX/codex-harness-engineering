@@ -149,7 +149,7 @@ description: >-
 
 Use this section only when the user explicitly requests an experience version for the uploaded project. That request covers selecting the uploaded development version as the experience version, not submitting it for review, publishing production, or changing members or tester permissions.
 
-1. After successful upload with the expected AppID, use the current `$ego-browser` skill and an independent Task Space to inspect the WeChat public platform. Follow current visible navigation rather than assuming fixed selectors.
+1. After successful upload with the expected AppID, use the platform browser per the global Browser And Web Access rules (Codex Chrome plugin / Claude in Chrome, in an agent-owned tab) to inspect the WeChat public platform. Follow current visible navigation rather than assuming fixed selectors.
 2. Verify the account/project AppID and identify the uploaded development version using its version, description, upload time, and other available evidence. Do not select a different or ambiguous record. Reuse a signed-in session; if login, QR verification, CAPTCHA, or a browser-owned approval requires the user, hand off under the global human-verification rules and resume only after the user confirms.
 3. Select that record as the experience version within the authorized scope. Read the resulting platform state to verify the selected version. Keep any experience QR or result page available only when needed by the user, following the current browser completion policy.
 4. If access, account scope, or available platform controls prevent selection, report the completed upload and remaining selection step. Continue independent authorized work; do not bypass access controls or substitute a production-release action.

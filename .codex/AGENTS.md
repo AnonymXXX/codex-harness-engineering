@@ -37,15 +37,20 @@ Keep user-managed skills under `~/.agents/skills`; reserve `~/.codex/skills` for
 
 ## Browser And Web Access
 
-涉及云资源、DNS/子域名解析、代码托管、部署和其他可通过结构化接口完成的操作时，先加载适用 Skill，并按专用 MCP/官方 API → 官方 CLI → `ego-browser` 的顺序选择执行路径。不得因浏览器可用就跳过 Skill、MCP/API 或 CLI；只有前述路径不可用、能力不足，或任务本身需要登录态页面、可视化核验或网页交互时，才使用浏览器。
+涉及云资源、DNS/子域名解析、代码托管、部署和其他可通过结构化接口完成的操作时，先加载适用 Skill，并按专用 MCP/官方 API → 官方 CLI → 浏览器的顺序选择执行路径。不得因浏览器可用就跳过 Skill、MCP/API 或 CLI；只有前述路径不可用、能力不足，或任务本身需要登录态页面、可视化核验或网页交互时，才使用浏览器。
 
 先发现当前可用的专用 MCP/API；本机 CLI 缺失不代表远端 MCP 不可用。官方文档 MCP、API schema 和 CLI help 能覆盖的查询无需启动浏览器。回退前说明具体缺失能力或连接故障；认证、权限或审批拒绝不得通过更换身份或浏览器绕过。
 
-需要浏览器的联网调研、网页读取、登录态操作、浏览器/CDP 控制和本地页面验证统一使用 `ego-browser`（ego lite）。每个任务使用独立 Task Space，复用其登录态，不抢占用户标签页或切换 macOS 桌面。
+需要浏览器的联网调研、网页读取、登录态操作和本地页面验证使用当前平台自带的浏览器能力，不使用 `ego-browser`（ego lite）：
 
-在 JumpServer Web 终端中执行命令时，使用页面底部 `Batch commands` 的命令输入框与 `Send` 按钮；不向 xterm Canvas 的隐藏 textarea 注入文本。命令执行后通过终端视口和 CDP 截图核对输出。
+- Codex：默认使用 Browser 插件（应用内浏览器）；任务需要用户 Chrome 的登录态、Cookie、扩展或已打开标签页，或用户点名 Chrome 时，使用 Chrome 插件（ChatGPT Chrome 扩展）。
+- Claude Code：按 `~/.claude/rules/harness-platform-adapter.md` 使用内置浏览器面板和 Claude in Chrome。
 
-不回退、安装或重新启用其他浏览器自动化 Skill。ego lite 不可用或缺少任务所需能力时，按 `ego-browser` 的安装/故障流程处理；仍无法覆盖时明确报告限制并停止对应步骤。Task Space 的交接、接管、结束接口和参数以当前 `ego-browser` Skill 及其 API 文档为准，不在全局规则中复制接口签名。任务真正完成后结束该 Space，默认不保留 Agent 管理的页面；仅在用户明确要求或需继续查看、手动操作结果时保留必要页面，始终保护用户原有页面。
+不抢占用户操作：浏览器工作默认在后台进行，只在 Agent 自己新建的标签页、窗口或标签组中操作；除非用户明确指定，不聚焦、接管、导航或关闭用户原有标签页；用户正在操作 Agent 需要的页面时等待用户，不强行接管。任务完成后关闭 Agent 创建的页面，仅在用户要求保留、页面本身是交付物或需要用户继续操作时保留。
+
+在 JumpServer Web 终端中执行命令时，使用页面底部 `Batch commands` 的命令输入框与 `Send` 按钮；不向 xterm Canvas 的隐藏 textarea 注入文本。命令执行后通过终端视口截图核对输出。
+
+不回退或重新启用 `ego-browser` 等其他浏览器自动化 Skill，也不用 AppleScript 或 shell 脚本替代浏览器扩展。所选浏览器不可用或缺少任务所需能力时，按对应插件的故障排查流程处理；仍无法覆盖时明确报告限制并停止对应步骤。
 
 ## Browser Acceptance
 
@@ -53,11 +58,11 @@ Post-implementation browser acceptance requires an explicit user request or a hi
 
 ## Human Verification（验证码/人机验证）
 
-在 `ego-browser` 浏览器或网页操作中检测到人机验证（CAPTCHA、滑块验证、点选验证码、reCAPTCHA、登录风控等）时，**立即停止该页面的自动化操作**，按当前 `ego-browser` Skill 的交接流程把当前 Space 交给用户并等待。禁止调用视觉能力尝试自动通过，也不得继续点击、拖拽、刷新或绕过验证。
+在浏览器或网页操作中检测到人机验证（CAPTCHA、滑块验证、点选验证码、reCAPTCHA、登录风控等）时，**立即停止该页面的自动化操作**，保留该页面（Codex 浏览器插件中对该标签页调用 `tab.markHandoff()`）交给用户并等待。禁止调用视觉能力尝试自动通过，也不得继续点击、拖拽、刷新或绕过验证。
 
 使用当前运行时可用的用户输入机制说明验证码位置（页面/网址/当前步骤）并等待；优先使用运行时允许且能表达所需输入的结构化工具，否则直接询问。选项至少包含 `已验证`（继续）、`未处理`（跳过或结束当前步骤）和 `取消任务`（终止任务）。
 
-等待用户选择后再继续；用户处理期间不得重复操作页面或重新触发验证码。仅在用户明确选择继续后，按当前 `ego-browser` Skill 的接管流程取回控制。
+等待用户选择后再继续；用户处理期间不得重复操作页面或重新触发验证码。仅在用户明确选择继续后，再从该页面恢复操作。
 
 ## DESIGN.md And UI Consistency
 
