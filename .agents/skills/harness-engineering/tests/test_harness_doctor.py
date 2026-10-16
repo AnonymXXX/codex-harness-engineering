@@ -282,6 +282,8 @@ class PolicyDocumentationTests(unittest.TestCase):
         self.assertIn("Chrome 插件（ChatGPT Chrome 扩展）", global_rules)
         self.assertIn("harness-platform-adapter.md", global_rules)
         self.assertIn("不抢占用户操作", global_rules)
+        self.assertIn("元素优先", global_rules)
+        self.assertIn("不以截图识图加坐标点击作为常规操作方式", global_rules)
         self.assertNotIn("Task Space", global_rules)
         self.assertNotIn("`handOffTaskSpace`", global_rules)
         self.assertNotIn("`completeTaskSpace`", global_rules)
