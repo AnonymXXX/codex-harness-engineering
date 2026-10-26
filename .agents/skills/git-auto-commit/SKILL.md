@@ -59,7 +59,7 @@ Use [message examples](references/git-commit-command.md) only when preparing a c
 - Build the message file with real line breaks, for example by writing `subject`, then a blank line, then the bullet lines.
 - Before committing, preview the message and sanity-check that it contains actual line breaks, and that the second line is blank when a body exists.
 - After committing with a body, run `git log --format=%B -1 HEAD` and verify the stored commit message still has the blank separator line; if not, immediately fix it with `git commit --amend -F <message-file>`.
-- In Claude Code, `scripts/check_commit_message.py` runs as a `PreToolUse` hook and blocks a `git commit` whose subject breaks these rules (over 50 characters, a trailing period, several changes strung together without a body, no blank line before the body, a literal `\n`). Fix the message instead of working around the hook.
+- `scripts/check_commit_message.py` runs before shell commands in Claude Code (`PreToolUse` hook in `~/.claude/settings.json`), Codex (`~/.codex/hooks.json`, active once trusted in `/hooks`) and pi (`~/.pi/agent/extensions/commit-message-check.ts`), and blocks a `git commit` whose subject breaks these rules (over 50 characters, a trailing period, several changes strung together without a body, no blank line before the body, a literal `\n`). Fix the message instead of working around the hook.
 
 ## Execute Commits
 
