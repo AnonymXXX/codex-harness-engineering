@@ -86,7 +86,7 @@ For UI, frontend, styling, or visual-design work, read project-root `DESIGN.md` 
 
 ## Git Authorization And History
 
-Use [Git Worktree Workflow](docs/workflows/git-worktree.md) for task isolation, commit convergence, preflight, integration, and cleanup. One requirement and its continuous feedback should contribute one final content commit; keep unrelated work separate. Never automatically rewrite shared history or an integrated target.
+Use [Git Worktree Workflow](docs/workflows/git-worktree.md) for task isolation, commit convergence, preflight, integration, and cleanup. One requirement and its continuous feedback should contribute one final content commit; keep unrelated work separate. Load `git-auto-commit` before creating or amending any commit, including automatic completion commits, and follow its message rules: a Chinese subject under 50 characters naming the most important change, with secondary changes in the body. Never automatically rewrite shared history or an integrated target.
 
 Normal non-forced pushes to `origin/dev`, `origin/develop`, `origin/test`, and `origin/uat`, including known non-production CI/deployment effects, have persistent authorization after required validation and preflight. Extensions require the workflow's user-confirmed repository allowlist and bounded existing non-production targets on `origin`. A project or current-task prohibition overrides persistent authorization. Other remotes, production targets/effects, tags, force pushes, and MR/PR creation or merge require explicit authorization.
 

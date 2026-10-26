@@ -70,7 +70,7 @@ Do not leave the integration or main worktree dirty just to record ledger status
 ## After Completing The Task
 
 - Run the relevant validation commands. For UI-affecting work, [Browser Acceptance](harness-engineering.md#browser-acceptance) owns non-browser check selection and omitted-coverage reporting.
-- If validation passes, automatically commit small low-risk implementation changes with a concise commit message unless the task is exploratory, temporary, explicitly marked no-commit, or the user asks to inspect the diff first.
+- If validation passes, automatically commit small low-risk implementation changes unless the task is exploratory, temporary, explicitly marked no-commit, or the user asks to inspect the diff first. Load `git-auto-commit` first and follow its grouping and message rules; every automatic commit counts.
 - For medium or large changes, briefly summarize the diff and validation result before committing, then continue without waiting unless the user asked to inspect the diff first or a stop condition applies.
 - Treat validated commit, eligible local auto-merge, separately authorized remote integration, and cleanup as the normal autonomous completion path. Do not end with "ready to merge" or ask the user to repeat a merge request when the applicable gates pass. Record acceptance evidence and integration basis separately under [Browser Acceptance](harness-engineering.md#browser-acceptance). A commit-only request does not itself authorize integration.
 - Before committing, verify the staged diff contains only attributable task changes and report proportionate validation. Working in the main directory needs no special justification. Never stage a mixed file wholesale just to complete the commit step.
