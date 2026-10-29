@@ -1,8 +1,8 @@
-# Codex Harness Engineering
+# Agent Harness Engineering
 
 **简体中文** | [English](README.en.md)
 
-一套面向 Codex 的可版本化工程工作流：让 Codex 根据任务风险选择执行方式，调用合适的 Skill，
+一套面向编程 Agent（Codex、Claude Code、pi）的可版本化工程工作流：让 Agent 根据任务风险选择执行方式，调用合适的 Skill，
 必要时隔离中高风险修改，完成必要验证，并只沉淀真正需要长期保留的项目知识。
 
 你不需要先读完所有规则。推荐直接在 Codex 中打开或引用本仓库，让 Codex 解释它是否适合你的
@@ -15,7 +15,7 @@
 在 Codex 中发送：
 
 ```text
-请阅读 AnonymXXX/codex-harness-engineering，告诉我这个仓库是干什么的、解决了什么问题、
+请阅读 AnonymXXX/agent-harness-engineering，告诉我这个仓库是干什么的、解决了什么问题、
 包含哪些核心组件、适合哪些用户，以及它的限制。请引用仓库中的具体文件作为依据，
 不要只复述 README。
 ```
@@ -53,7 +53,7 @@ Codex 应重点比较以下方面：
 确认适合后，可以让 Codex 完成检查、链接和验证：
 
 ```text
-请帮我接入 AnonymXXX/codex-harness-engineering。
+请帮我接入 AnonymXXX/agent-harness-engineering。
 
 先只读检查 ~/.codex、~/.agents/skills、当前 Git 状态和可能冲突。不要读取、复制或输出凭据、
 sessions、memory、cache 或其他敏感运行时数据。
@@ -79,10 +79,10 @@ Codex 只能分析当前任务中你明确授权且本机可访问的内容。�
 然后手动创建 Harness 符号链接。浏览器使用 Codex 的 Browser/Chrome 插件或 Claude 的内置浏览器与 Claude in Chrome，无需另装浏览器：
 
 ```bash
-gh repo clone AnonymXXX/codex-harness-engineering ~/.local/share/codex-harness-engineering
-ln -s ~/.local/share/codex-harness-engineering/.codex/AGENTS.md ~/.codex/AGENTS.md
-ln -s ~/.local/share/codex-harness-engineering/.codex/docs ~/.codex/docs
-for skill in ~/.local/share/codex-harness-engineering/.agents/skills/*; do
+gh repo clone AnonymXXX/agent-harness-engineering ~/.local/share/agent-harness-engineering
+ln -s ~/.local/share/agent-harness-engineering/.codex/AGENTS.md ~/.codex/AGENTS.md
+ln -s ~/.local/share/agent-harness-engineering/.codex/docs ~/.codex/docs
+for skill in ~/.local/share/agent-harness-engineering/.agents/skills/*; do
   ln -s "$skill" ~/.agents/skills/
 done
 uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write

@@ -53,7 +53,7 @@ class OriginalSkillLicenseTests(unittest.TestCase):
         self.assertIn("Copyright 2026 AnonymXXX", original_works)
         self.assertIn("authored by **AnonymXXX**", original_works)
         self.assertIn(
-            "https://github.com/AnonymXXX/codex-harness-engineering",
+            "https://github.com/AnonymXXX/agent-harness-engineering",
             original_works,
         )
         self.assertIn("Apache License 2.0", original_works)

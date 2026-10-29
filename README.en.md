@@ -1,8 +1,8 @@
-# Codex Harness Engineering
+# Agent Harness Engineering
 
 [简体中文](README.md) | **English**
 
-A versioned engineering workflow for Codex. It helps Codex choose an execution approach based on
+A versioned engineering workflow for coding agents (Codex, Claude Code, pi). It helps the agent choose an execution approach based on
 task risk, route work to the appropriate skills, isolate medium- and high-risk changes when needed,
 perform proportionate validation, and preserve only project knowledge that should remain durable.
 
@@ -17,7 +17,7 @@ whether to install it.
 Send this to Codex:
 
 ```text
-Read AnonymXXX/codex-harness-engineering and explain what this repository does, which problems it
+Read AnonymXXX/agent-harness-engineering and explain what this repository does, which problems it
 solves, its core components, who it is for, and its limitations. Cite specific files from the
 repository as evidence instead of only repeating the README.
 ```
@@ -57,7 +57,7 @@ These are workflow capabilities, not mechanisms that every task must use. Simple
 After deciding that it fits, Codex can perform the inspection, linking, and validation:
 
 ```text
-Help me adopt AnonymXXX/codex-harness-engineering.
+Help me adopt AnonymXXX/agent-harness-engineering.
 
 First, inspect ~/.codex, ~/.agents/skills, the current Git state, and potential conflicts without
 making changes. Do not read, copy, or output credentials, sessions, memory, caches, or other
@@ -87,10 +87,10 @@ CLI, Git, `uv`, and GitHub CLI on macOS, then create the Harness symlinks manual
 Browser work uses Codex's Browser/Chrome plugins or Claude's built-in browser and Claude in Chrome, so no separate browser install is needed:
 
 ```bash
-gh repo clone AnonymXXX/codex-harness-engineering ~/.local/share/codex-harness-engineering
-ln -s ~/.local/share/codex-harness-engineering/.codex/AGENTS.md ~/.codex/AGENTS.md
-ln -s ~/.local/share/codex-harness-engineering/.codex/docs ~/.codex/docs
-for skill in ~/.local/share/codex-harness-engineering/.agents/skills/*; do
+gh repo clone AnonymXXX/agent-harness-engineering ~/.local/share/agent-harness-engineering
+ln -s ~/.local/share/agent-harness-engineering/.codex/AGENTS.md ~/.codex/AGENTS.md
+ln -s ~/.local/share/agent-harness-engineering/.codex/docs ~/.codex/docs
+for skill in ~/.local/share/agent-harness-engineering/.agents/skills/*; do
   ln -s "$skill" ~/.agents/skills/
 done
 uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py index --write

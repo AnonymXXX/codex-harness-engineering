@@ -3,7 +3,7 @@
 Copyright 2026 AnonymXXX.
 
 Except for the third-party works identified in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md),
-the contents of <https://github.com/AnonymXXX/codex-harness-engineering> are original works
+the contents of <https://github.com/AnonymXXX/agent-harness-engineering> are original works
 authored by **AnonymXXX** and licensed under the repository's
 [Apache License 2.0](LICENSE). This first-party scope includes the Harness rules, agents,
 workflows, setup and validation tooling, configuration, tests, documentation, and the original
