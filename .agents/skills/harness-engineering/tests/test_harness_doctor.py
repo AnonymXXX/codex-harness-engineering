@@ -517,8 +517,10 @@ class WorktreeTests(unittest.TestCase):
         self.assertIn("codex/eligible-dry-run", branches.splitlines())
         self.assertFalse([item for item in checks if item["severity"] == "error"])
 
-    def test_cleanup_removes_only_safe_old_codex_worktrees(self) -> None:
+    def test_cleanup_removes_only_safe_old_agent_worktrees(self) -> None:
         eligible = self.add_worktree("eligible", "codex/eligible")
+        claude = self.add_worktree("claude-eligible", "claude/eligible")
+        pi = self.add_worktree("pi-eligible", "pi/eligible")
         ledgered = self.add_worktree("ledgered", "codex/ledgered")
         locked = self.add_worktree("locked", "codex/locked")
         active = self.add_worktree("active", "codex/active")
@@ -549,16 +551,20 @@ class WorktreeTests(unittest.TestCase):
             if item.get("path")
         }
         self.assertEqual("removed", status_by_name[eligible.name])
+        self.assertEqual("removed", status_by_name[claude.name])
+        self.assertEqual("removed", status_by_name[pi.name])
         self.assertEqual("ledger-covered", status_by_name[ledgered.name])
         self.assertEqual("locked", status_by_name[locked.name])
         self.assertEqual("active-process", status_by_name[active.name])
-        self.assertEqual("non-codex-branch", status_by_name[manual.name])
+        self.assertEqual("non-agent-branch", status_by_name[manual.name])
         self.assertEqual("unsafe-state", status_by_name[dirty.name])
-        self.assertFalse(eligible.exists())
+        for removed in (eligible, claude, pi):
+            self.assertFalse(removed.exists())
         for preserved in (ledgered, locked, active, manual, dirty):
             self.assertTrue(preserved.exists())
         branches = run("git", "branch", "--format=%(refname:short)", cwd=self.repo)
-        self.assertNotIn("codex/eligible", branches.splitlines())
+        for removed_branch in ("codex/eligible", "claude/eligible", "pi/eligible"):
+            self.assertNotIn(removed_branch, branches.splitlines())
         self.assertFalse([item for item in checks if item["severity"] == "error"])
 
     def test_cleanup_fails_closed_when_active_process_scan_is_unavailable(self) -> None:
@@ -768,7 +774,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("skills", payload["section_summaries"])
         self.assertIn("worktrees", payload["section_summaries"])
         self.assertNotIn("docs", payload["section_summaries"])
-        self.assertEqual(10, payload["version"])
+        self.assertEqual(11, payload["version"])
         self.assertEqual(0, doctor.report_exit_code(report, strict=False))
         self.assertEqual(1, doctor.report_exit_code(report, strict=True))
 

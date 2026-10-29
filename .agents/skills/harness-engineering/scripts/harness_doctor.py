@@ -30,7 +30,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.9
     except ModuleNotFoundError:  # pragma: no cover - optional dependency
         tomllib = None  # type: ignore[assignment]
 
-REPORT_VERSION = 10
+REPORT_VERSION = 11
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FRONTMATTER_PATTERN = re.compile(r"^---\n(.*?)\n---(?:\n|$)", re.DOTALL)
 HARNESS_SKILLS = {
@@ -43,6 +43,8 @@ HARNESS_SKILLS = {
 HARNESS_INVOCATION_POLICY = {
     "harness-engineering": True,
 }
+# Task branch prefixes per agent: Codex, Claude Code, pi.
+AGENT_BRANCH_PREFIXES = ("codex/", "claude/", "pi/")
 WORKTREE_DEBT_STATES = {
     "dirty",
     "clean-unmerged-or-rewritten",
@@ -1103,8 +1105,8 @@ def cleanup_worktrees(
                 status = "active-check-unavailable"
             elif state != "clean-ancestor":
                 status = "unsafe-state"
-            elif not branch or not branch.startswith("codex/"):
-                status = "non-codex-branch"
+            elif not branch or not branch.startswith(AGENT_BRANCH_PREFIXES):
+                status = "non-agent-branch"
             elif covered:
                 status = "ledger-covered"
             elif item.get("locked"):
@@ -1560,7 +1562,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     cleanup_parser = subparsers.add_parser(
         "cleanup",
-        help="Remove only old, merged, clean, inactive Codex worktrees",
+        help="Remove only old, merged, clean, inactive agent task worktrees",
     )
     cleanup_parser.add_argument(
         "--safe",

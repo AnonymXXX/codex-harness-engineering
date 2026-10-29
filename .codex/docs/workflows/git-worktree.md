@@ -29,7 +29,7 @@ Apply the worktree-creation steps below only when isolation is needed under the 
 - Determine the integration branch in this order: project `AGENTS.md` or documented project rule, the current branch's upstream integration branch, `origin/HEAD`, then common integration names such as `main`, `master`, or `develop`. If it is still ambiguous, ask the user before continuing.
 - Before creating the task worktree, identify existing changes and preserve them in the original worktree. Dirty or overlapping paths do not by themselves block a separate worktree: start from a verified committed base and reconstruct only attributable, authorized task changes there. If required uncommitted dependencies cannot be separated or their inclusion is not authorized, prepare the dependency diff and ask only about that scope.
 - Record the integration branch commit as the immutable task base before creating the task worktree. Keep that OID available for remote preflight and safe local synchronization.
-- Use a descriptive task branch name, such as `codex/<task-slug>`.
+- Name the task branch `<agent>/<task-slug>` after the agent doing the work: `codex/` for Codex, `claude/` for Claude Code, `pi/` for pi. Never give another agent's work a `codex/` branch.
 - Place the worktree in a sibling directory, such as `../<repo-name>.worktrees/<task-slug>`.
 - Do all implementation, edits, and validation inside that worktree.
 - Treat this section as a checklist: inspect status, determine the integration branch, create the task worktree, switch into it, implement there, validate there, commit there when appropriate, then merge back only under the rules below.
@@ -102,7 +102,7 @@ Verify `git merge-base --is-ancestor <task-commit> <local-target>` after integra
 
 Do not run the global cleanup scan for Fast Lane work. For Standard or Heavy Lane completion, run `uv run ~/.agents/skills/harness-engineering/scripts/harness_doctor.py cleanup --safe --older-than-days 7` only when no successful global cleanup is known within the preceding 24 hours. When uncertain, skip it and leave cleanup to the next periodic Harness maintenance pass.
 
-Cleanup automatically removes only stale `codex/*` worktrees that are clean, fully merged into their integration branch, unlocked, not ledgered, and unused as any process cwd. Age is the newest of directory creation time, directory modification time, and branch commit time. Dirty, unmerged, detached, non-Codex, unknown, active, locked, and ledgered worktrees are retained. Cleanup failure is reported and leaves uncertain worktrees untouched; it does not retroactively invalidate completed implementation work.
+Cleanup automatically removes only stale agent task worktrees (`codex/*`, `claude/*`, `pi/*`) that are clean, fully merged into their integration branch, unlocked, not ledgered, and unused as any process cwd. Age is the newest of directory creation time, directory modification time, and branch commit time. Dirty, unmerged, detached, other-prefix, unknown, active, locked, and ledgered worktrees are retained. Cleanup failure is reported and leaves uncertain worktrees untouched; it does not retroactively invalidate completed implementation work.
 
 ## Commit Convergence Before Publication
 
